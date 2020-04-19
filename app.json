@@ -1,0 +1,9 @@
+{
+  "name": "Spacey Snake",
+  "description": "A battlesnake that factors in grid spaces and balances attack, defense and eating",
+  "repository": "https://github.com/blainey/spacey-snake",
+  "keywords": [
+    "battlesnake"
+  ]
+}
+
