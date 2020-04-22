@@ -468,7 +468,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
  	// Now, there are up to three possible directions we can move, since our own body
 	// will block at least one direction
-	debug.Printf("Enumerate possiible moves")
+	debug.Printf("Enumerate possiible moves\n")
 	var moves [3]struct {
 		dir string
 		c Coord
@@ -508,20 +508,20 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		nmoves++
 	}
 
-	debug.Printf("Check if 0 or 1 moves")
+	debug.Printf("Check if 0 or 1 moves\n")
 
 	if (nmoves == 0) {
-		debug.Printf("Suicide!")
+		debug.Printf("Suicide!\n")
 		return Left()
 	}
 
 	if (nmoves == 1) {
-		debug.Printf("Select %s because it is the only viable move")
+		debug.Printf("Select %s because it is the only viable move\n")
 		return Result(moves[0].dir)
 	}
 
 	// Map spaces anchored at each valid adjacent cell
-	debug.Printf("Map spaces around our head")
+	debug.Printf("Map spaces around our head\n")
 	nspaces := 0
 	for _,move := range moves {
 		if (s.grid[move.c.X][move.c.Y].space > 0) { continue }
@@ -555,31 +555,34 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// length.  This is conservative since the boundign snakes will be moving so other 
 	// heuristics are possible here.
 
+	debug.Printf("Check for infeasibly small adjacent spaces\n")
 	myLength := s.snakes[1].length
 	for mx := 0; mx < nmoves; {
 		move := moves[mx]
 		space := s.grid[move.c.X][move.c.Y].space
 		if s.spaces[space].self {
 			if s.spaces[space].size < myLength/2 + s.spaces[space].nfood {
-				debug.Printf("Exclude %s because it is a self-bounded region that is too small", move.dir)
+				debug.Printf("Exclude %s because it is a self-bounded region that is too small\n", move.dir)
 				Exclude(mx)
 				continue
 			}	
 		} else if s.spaces[space].size < myLength {
-			debug.Printf("Exclude %s because it is a region that is too small", move.dir)
+			debug.Printf("Exclude %s because it is a region that is too small\n", move.dir)
 			Exclude(mx)
 			continue
 		}
 		mx++
 	}
 
+	debug.Printf("Check if 0 or 1 moves\n")
+
 	if (nmoves == 0) {
-		debug.Printf("Suicide!")
+		debug.Printf("Suicide!\n")
 		return Left()
 	}
 
 	if (nmoves == 1) {
-		debug.Printf("Select %s because it is the only viable move")
+		debug.Printf("Select %s because it is the only viable move\n")
 		return Result(moves[0].dir)
 	}
 
@@ -634,32 +637,35 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// If these moves have an adjacent head from a shorter snake, move to take it out
 	// unless we are in critical health
 
+	debug.Printf("Check for adjacent snake heads\n")
 	myHealth := y.Health
 	for mx := 0; mx < nmoves; {
 		move := moves[mx]
 		nlonger, nshorter := AdjacentSnakeHeads(move.c)
 
 		if nlonger > 0 { 
-			debug.Printf("Exclude %s because it is adjacent to the head of a loner snake", move.dir)
+			debug.Printf("Exclude %s because it is adjacent to the head of a loner snake\b", move.dir)
 			Exclude(mx); 
 			continue 
 		}
 
 		if nshorter > 0 && myHealth > s.food[0].dist { 
-			debug.Printf("Select %s because we have the opportunity to take out a shorter snake", move.dir)
+			debug.Printf("Select %s because we have the opportunity to take out a shorter snake\n", move.dir)
 			return Result(move.dir) 
 		}
 
 		mx++
 	}
 	
+	debug.Printf("Check if 0 or 1 moves\n")
+
 	if (nmoves == 0) {
-		debug.Printf("Suicide!")
+		debug.Printf("Suicide!\n")
 		return Left()
 	}
 
 	if (nmoves == 1) {
-		debug.Printf("Select %s because it is the only viable move")
+		debug.Printf("Select %s because it is the only viable move\n")
 		return Result(moves[0].dir)
 	}
 
@@ -669,6 +675,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// our present health
 
 	// Choose the move that makes best progress toward food
+	debug.Printf("Choose the move that makes best progress toward food")
 	var foodDist [3]int
 	for mx := 0; mx < nmoves; mx++ {
 		move := moves[mx]
