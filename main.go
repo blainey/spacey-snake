@@ -140,19 +140,19 @@ func (c GameCell) IsFood() bool {
 }
 
 func (c GameCell) IsBody() bool {
-	return c.content % 3 == 0
+	return c.content > 2 && c.content % 3 == 0
 }
 
 func (c GameCell) IsHead() bool {
-	return c.content % 3 == 1
+	return c.content > 2 && c.content % 3 == 1
 }
 
 func (c GameCell) IsTail() bool {
-	return c.content % 3 == 2
+	return c.content > 2 && c.content % 3 == 2
 }
 
 func (c GameCell) IsSelf() bool {
-	return c.content / 3 == 1
+	return c.content > 2 && c.content / 3 == 1
 }
 
 func (c GameCell) SnakeNo() int {
