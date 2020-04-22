@@ -442,6 +442,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	if (t == 0) {
 		// Special case, we can move in any direction, so just move toward the closest food
 		cf := s.food[0].pos
+		debug.Printf("Turn=0 special case, head=(%d,%d), cf=(%d,%d)\n",head.X,head.Y,cf.X,cf.Y)
 		switch {
 		case cf.X < head.X: return Left()
 		case cf.X > head.X: return Right()
