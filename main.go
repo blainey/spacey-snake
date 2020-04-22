@@ -390,6 +390,9 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 	sort.Slice(s.snakes, func(i, j int) bool {
 		return s.snakes[i].dist < s.snakes[j].dist
 	})
+	for _,snake := range s.snakes {
+		debug.Printf("Snake head:(%d,%d), dist=%d\n",snake.head.X,snake.head.Y,snake.dist)
+	}
 
 	debug.Printf("Allocate food vector\n")
 	s.food = make ([]FoodState, len(b.Food))
