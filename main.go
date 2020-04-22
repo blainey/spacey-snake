@@ -242,31 +242,31 @@ type GameState struct {
 	spaces	[4]SpaceState
 }
 
-func (s GameState) IsEmpty(c Coord) bool {
+func (s *GameState) IsEmpty(c Coord) bool {
 	return s.grid[c.X][c.Y].IsEmpty()
 }
 
-func (s GameState) IsFood(c Coord) bool {
+func (s *GameState) IsFood(c Coord) bool {
 	return s.grid[c.X][c.Y].IsFood()
 }
 
-func (s GameState) IsBody(c Coord) bool {
+func (s *GameState) IsBody(c Coord) bool {
 	return s.grid[c.X][c.Y].IsBody()
 }
 
-func (s GameState) IsHead(c Coord) bool {
+func (s *GameState) IsHead(c Coord) bool {
 	return s.grid[c.X][c.Y].IsHead()
 }
 
-func (s GameState) IsTail(c Coord) bool {
+func (s *GameState) IsTail(c Coord) bool {
 	return s.grid[c.X][c.Y].IsTail()
 }
 
-func (s GameState) IsSelf(c Coord) bool {
+func (s *GameState) IsSelf(c Coord) bool {
 	return s.grid[c.X][c.Y].IsSelf()
 }
 
-func (s GameState) SnakeNo(c Coord) int {
+func (s *GameState) SnakeNo(c Coord) int {
 	return s.grid[c.X][c.Y].SnakeNo()
 }
 
@@ -279,7 +279,7 @@ func (s GameState) SnakeNo(c Coord) int {
 // our own or others.
 // ----------------------------------------------------------------
 
-func (s GameState) MapSpace (c Coord, space int) int {
+func (s *GameState) MapSpace (c Coord, space int) int {
 	if s.grid[c.X][c.Y].space != 0 { return 0 }
 
 	count := 1
@@ -341,7 +341,7 @@ func (s GameState) MapSpace (c Coord, space int) int {
 // Based on data found in request payload.
 // ----------------------------------------------------------------
 
-func (s GameState) Initialize (g Game, t int, b Board, y Snake) {
+func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 	debug := NewLogger(y.ID, "DEBUG")
 	//info := NewLogger(y.ID, "INFO")
 
