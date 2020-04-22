@@ -342,21 +342,27 @@ func (s GameState) MapSpace (c Coord, space int) int {
 // ----------------------------------------------------------------
 
 func (s GameState) Initialize (g Game, t int, b Board, y Snake) {
+	debug := NewLogger(y.ID, "DEBUG")
+	//info := NewLogger(y.ID, "INFO")
+
 	s.ID = g.ID
 	s.turn = t
 
 	s.h = b.Height
 	s.w = b.Width
 	
+	debug.Printf("Allocate game grid")
 	s.grid = make ([][]GameCell, s.w)
 	for i := range s.grid {
 		s.grid[i] = make([]GameCell, s.h)
 	}
 
+	debug.Printf("Allocate snakes vector")
 	s.snakes = make ([]SnakeState, len(b.Snakes))
 
 	myHead := y.Body[0]
 
+	debug.Printf("Plot snakes on grid")
 	for sx,snake := range b.Snakes {
 		s.snakes[sx].ID = snake.ID
 
@@ -380,12 +386,15 @@ func (s GameState) Initialize (g Game, t int, b Board, y Snake) {
 
 	// Sort snakes in order of distance of their head from our head
 	// This will put our snake at index 0
+	debug.Printf("Sort snakes by distance")
 	sort.Slice(s.snakes, func(i, j int) bool {
 		return s.snakes[i].dist < s.snakes[j].dist
 	})
 
+	debug.Printf("Allocate food vector")
 	s.food = make ([]FoodState, len(b.Food))
 
+	debug.Printf("Plot food discs on grid")
 	for fx,food := range b.Food {
 		s.grid[food.X][food.Y] = FoodCell()
 		s.food[fx].pos = food
@@ -393,6 +402,7 @@ func (s GameState) Initialize (g Game, t int, b Board, y Snake) {
 	}
 
 	// Sort food in order of distance from our head
+	debug.Printf("Sort food discs by distance")
 	sort.Slice(s.food, func(i, j int) bool {
 		return s.food[i].dist < s.food[j].dist
 	})
@@ -425,7 +435,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
 	var s GameState
 	s.Initialize(g,t,b,y)
-	head := s.snakes[0].head
+	head := s.snakes[1].head
 
 	if (t == 0) {
 		// Special case, we can move in any direction, so just move toward the closest food
@@ -728,7 +738,7 @@ func HandleStart(w http.ResponseWriter, r *http.Request) {
 	mySnakes.m[request.You.ID] = colors[cx].name
 	mySnakes.Unlock()
 
-	fmt.Print("INFO(%s): Start\n", colors[cx].name)
+	fmt.Printf("INFO(%s): Start\n", colors[cx].name)
 	
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
