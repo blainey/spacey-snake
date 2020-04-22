@@ -479,7 +479,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	}
 
 	IsBlocked := func (c Coord) bool {
-		return s.IsBody(c) || s.IsHead(c)
+		return s.IsBody(c) || s.IsHead(c) || (t == 1 && s.IsTail(c))
 	}
 
 	nmoves := 0
