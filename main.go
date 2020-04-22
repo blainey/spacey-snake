@@ -473,7 +473,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
  	// Now, there are up to three possible directions we can move, since our own body
 	// will block at least one direction
 	debug.Printf("Enumerate possiible moves\n")
-	var moves [3]struct {
+	var moves [4]struct {
 		dir string
 		c Coord
 	}
@@ -489,6 +489,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		if IsBlocked(left) { 
 			debug.Printf("Direction left blocked by snake head or body\n")
 		} else {
+			debug.Printf("Add left to possible moves, left=(%d,%d)[%d]\n",left.X,left.Y,s.grid[left.X][left.Y].content)
 			moves[nmoves].dir = "left"
 			moves[nmoves].c = left
 			nmoves++
