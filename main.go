@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+// ----------------------------------------------------------------
+// JSON types
+// ----------------------------------------------------------------
+
 type Coord struct {
 	X int `json:"x"`
 	Y int `json:"y"`
@@ -24,15 +28,15 @@ type Snake struct {
 	Body   []Coord `json:"body"`
 }
 
+type Game struct {
+	ID string `json:"id"`
+}
+
 type Board struct {
 	Height int     `json:"height"`
 	Width  int     `json:"width"`
 	Food   []Coord `json:"food"`
 	Snakes []Snake `json:"snakes"`
-}
-
-type Game struct {
-	ID string `json:"id"`
 }
 
 type StartRequest struct {
@@ -48,6 +52,13 @@ type StartResponse struct {
 	TailType string `json:"tailType,omitempty"`
 }
 
+type EndRequest struct {
+	Game  Game  `json:"game"`
+	Turn  int   `json:"turn"`
+	Board Board `json:"board"`
+	You   Snake `json:"you"`
+}
+
 type MoveRequest struct {
 	Game  Game  `json:"game"`
 	Turn  int   `json:"turn"`
@@ -60,35 +71,634 @@ type MoveResponse struct {
 	Shout string `json:"shout,omitempty"`
 }
 
-type EndRequest struct {
-	Game  Game  `json:"game"`
-	Turn  int   `json:"turn"`
-	Board Board `json:"board"`
-	You   Snake `json:"you"`
+// ----------------------------------------------------------------
+// Utility functions
+// ----------------------------------------------------------------
+
+// Absolute value
+func Abs (x int) int {
+	if x < 0 {
+		return -x
+	} else {
+		return x
+	}
 }
 
-func HandleIndex(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "Your Battlesnake is alive!")
+// Compute manhattan distance between two cells
+func ManDist (a, b Coord) int {
+	return Abs(a.X-b.X) + Abs(a.Y-b.Y)
 }
 
-func HandlePing(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "pong")
+// Translate a coordinate
+func Translate (a Coord, dx, dy int) Coord {
+	return Coord{ a.X+dx, a.Y+dy }
 }
 
-var colorPicker uint32
-
-type SnakeState struct {
-	SelfID string
-	Color  string
-}
+// ----------------------------------------------------------------
+// Logging
+// ----------------------------------------------------------------
 
 var mySnakes struct {
 	sync.RWMutex
-	m map[string]SnakeState
+	m map[string]string
+}
+	
+type Log struct {
+	color string
+	level string
+}
+
+func NewLogger (ID string, level string) Log {
+	var l Log
+	mySnakes.RLock()
+	l.color = mySnakes.m[ID]
+	mySnakes.RUnlock()
+	l.level = level
+	return l
+}
+
+func (l Log) Printf (s string, msgs ...interface{}) {
+	fmt.Printf("%s(%s):",l.level,l.color)
+	fmt.Printf(s,msgs...)
+}
+
+// ----------------------------------------------------------------
+// GameCell
+// ----------------------------------------------------------------
+
+type GameCell struct {
+	content		uint16
+	space		uint16
+}
+
+func (c GameCell) IsEmpty() bool {
+	return c.content == 0
+}
+
+func (c GameCell) IsFood() bool {
+	return c.content == 1
+}
+
+func (c GameCell) IsBody() bool {
+	return c.content % 3 == 0
+}
+
+func (c GameCell) IsHead() bool {
+	return c.content % 3 == 1
+}
+
+func (c GameCell) IsTail() bool {
+	return c.content % 3 == 2
+}
+
+func (c GameCell) IsSelf() bool {
+	return c.content / 3 == 1
+}
+
+func (c GameCell) SnakeNo() int {
+	return int(c.content) / 3
+}
+
+func FoodCell() GameCell { 
+	return GameCell { 1, 0 }
+}
+
+func BodyCell(s int) GameCell {
+	var c GameCell
+	c.content = uint16(s) * 3
+	return c
+}
+
+func HeadCell(s int) GameCell {
+	var c GameCell
+	c.content = uint16(s) * 3 + 1
+	return c
+}
+
+func TailCell(s int) GameCell {
+	var c GameCell
+	c.content = uint16(s) * 3 + 2
+	return c
+}
+
+// ----------------------------------------------------------------
+// SnakeState
+//
+// We track the head and tail o feach snake, its length and 
+// the distance from its head to our head
+// ----------------------------------------------------------------
+
+type SnakeState struct {
+	ID		string
+	head 	Coord
+	tail 	Coord
+	length 	int
+	dist	int
+}
+
+// ----------------------------------------------------------------
+// SpaceState
+//
+// We track the size and boundary of each spatial region around
+// the head of our snake.  The boundary is a set of snakes
+// that make up some part of it (in addition to possibly the 
+// edges of the grid)
+// ----------------------------------------------------------------
+
+type SpaceState struct {
+	size	int
+	snakes	[]bool
+	nsnakes	int
+	self	bool
+	nfood	int
+}
+
+// ----------------------------------------------------------------
+// FoodState
+//
+// We track the position of each food disc and the distance 
+// between the food and the head of our snake
+// ----------------------------------------------------------------
+
+type FoodState struct {
+	pos		Coord
+	dist	int
+}
+
+// ----------------------------------------------------------------
+// GameState
+//
+// An aggregation of information about the current game state
+// ----------------------------------------------------------------
+
+type GameState struct {
+	ID		string
+	color	string
+	turn	int
+	h, w	int
+	grid 	[][]GameCell
+	snakes	[]SnakeState
+	food	[]FoodState
+	spaces	[4]SpaceState
+}
+
+func (s GameState) IsEmpty(c Coord) bool {
+	return s.grid[c.X][c.Y].IsEmpty()
+}
+
+func (s GameState) IsFood(c Coord) bool {
+	return s.grid[c.X][c.Y].IsFood()
+}
+
+func (s GameState) IsBody(c Coord) bool {
+	return s.grid[c.X][c.Y].IsBody()
+}
+
+func (s GameState) IsHead(c Coord) bool {
+	return s.grid[c.X][c.Y].IsHead()
+}
+
+func (s GameState) IsTail(c Coord) bool {
+	return s.grid[c.X][c.Y].IsTail()
+}
+
+func (s GameState) IsSelf(c Coord) bool {
+	return s.grid[c.X][c.Y].IsSelf()
+}
+
+func (s GameState) SnakeNo(c Coord) int {
+	return s.grid[c.X][c.Y].SnakeNo()
+}
+
+// ----------------------------------------------------------------
+// Space Mapping
+//
+// This is a flood fill algorithm which is used to map out a
+// space adjacent to the head of our snake.  A space is any set 
+// of cells bounded by the bodies or heads of snakes, either
+// our own or others.
+// ----------------------------------------------------------------
+
+func (s GameState) MapSpace (c Coord, space int) int {
+	if s.grid[c.X][c.Y].space != 0 { return 0 }
+
+	count := 1
+	s.grid[c.X][c.Y].space = uint16(space)
+	if s.grid[c.X][c.Y].IsFood() { s.spaces[space].nfood++ }
+
+	IsOpen := func (c Coord) bool {
+		return s.IsEmpty(c) || s.IsFood(c) || s.IsTail(c)
+	}
+
+	TrackSnake := func (c Coord) {
+		if (s.IsBody(c) || s.IsHead(c)) { 
+			s.spaces[space].snakes[s.SnakeNo(c)] = true 
+		}
+	}
+
+	west := c; c.X--
+	if west.X >= 0 {
+		if IsOpen(west)  { 
+			count += s.MapSpace(west,space) 
+		} else { 
+			TrackSnake(west) 
+		}
+	} 
+
+	north := c; north.Y--
+	if north.Y >= 0 {
+		if IsOpen(north) { 
+			count += s.MapSpace(north,space) 
+		} else { 
+			TrackSnake(north) 
+		}
+	}
+
+	east := c; c.X++
+	if east.X < s.w {
+		if IsOpen(east) { 
+			count += s.MapSpace(east,space) 
+		} else { 
+			TrackSnake(east) 
+		}
+	} 
+
+	south := c; south.Y++
+	if south.Y < s.h {
+		if IsOpen(south) { 
+			count += s.MapSpace(south,space) 
+		} else { 
+			TrackSnake(south) 
+		}
+	}
+
+	return count
+}
+
+// ----------------------------------------------------------------
+// Initialize GameState
+//
+// Based on data found in request payload.
+// ----------------------------------------------------------------
+
+func (s GameState) Initialize (g Game, t int, b Board, y Snake) {
+	s.ID = g.ID
+	s.turn = t
+
+	s.h = b.Height
+	s.w = b.Width
+	
+	s.grid = make ([][]GameCell, s.w)
+	for i := range s.grid {
+		s.grid[i] = make([]GameCell, s.h)
+	}
+
+	s.snakes = make ([]SnakeState, len(b.Snakes))
+
+	myHead := y.Body[0]
+
+	for sx,snake := range b.Snakes {
+		s.snakes[sx].ID = snake.ID
+
+		head := snake.Body[0]
+		s.snakes[sx].head = head
+		s.grid[head.X][head.Y] = HeadCell(sx)
+
+		sz := len(snake.Body)
+		s.snakes[sx].length = sz
+		for i := 1; i < sz-1; i++ {
+			pos := snake.Body[i]
+			s.grid[pos.X][pos.Y] = BodyCell(sx)
+		}
+
+		tail := snake.Body[sz-1]
+		s.snakes[sx].tail = tail
+		s.grid[tail.X][tail.Y] = TailCell(sx)
+
+		s.snakes[sx].dist = ManDist(head,myHead)
+	}
+
+	// Sort snakes in order of distance of their head from our head
+	// This will put our snake at index 0
+	sort.Slice(s.snakes, func(i, j int) bool {
+		return s.snakes[i].dist < s.snakes[j].dist
+	})
+
+	s.food = make ([]FoodState, len(b.Food))
+
+	for fx,food := range b.Food {
+		s.grid[food.X][food.Y] = FoodCell()
+		s.food[fx].pos = food
+		s.food[fx].dist = ManDist(food,myHead)
+	}
+
+	// Sort food in order of distance from our head
+	sort.Slice(s.food, func(i, j int) bool {
+		return s.food[i].dist < s.food[j].dist
+	})
+}
+
+// ----------------------------------------------------------------
+// FindMove
+//
+// Decide on a move.
+// ----------------------------------------------------------------
+
+func FindMove (g Game, t int, b Board, y Snake) string {
+	start := time.Now()
+
+	debug := NewLogger(y.ID, "DEBUG")
+	info := NewLogger(y.ID, "INFO")
+
+	info.Printf("Move turn=%d\n", t)
+
+	Result := func(dir string) string {
+		elapsed := time.Since(start)
+		info.Printf("Move result=%s, elapsed=%dms\n", dir, elapsed.Milliseconds())
+		return dir
+	}
+
+	Left  := func() string { return Result("left")  }
+	Right := func() string { return Result("right") }
+	Up    := func() string { return Result("up")    }
+	Down  := func() string { return Result("down")  }
+
+	var s GameState
+	s.Initialize(g,t,b,y)
+	head := s.snakes[0].head
+
+	if (t == 0) {
+		// Special case, we can move in any direction, so just move toward the closest food
+		cf := s.food[0].pos
+		switch {
+		case cf.X < head.X: return Left()
+		case cf.X > head.X: return Right()
+		case cf.Y < head.Y: return Up()
+		default: return Down()
+		}
+	}
+
+	LeftCell := func (c Coord) (Coord,bool) {
+		c.X--
+		return c, c.X >= 0
+	}
+	RightCell := func (c Coord) (Coord,bool) {
+		c.X++
+		return c, c.X < s.w
+	}
+	UpCell := func (c Coord) (Coord,bool) {
+		c.Y--
+		return c, c.Y >= 0
+	}
+	DownCell := func (c Coord) (Coord,bool) {
+		c.Y++
+		return c, c.Y < s.h
+	}
+
+ 	// Now, there are up to three possible directions we can move, since our own body
+	// will block at least one direction
+	var moves [3]struct {
+		dir string
+		c Coord
+	}
+
+	IsBlocked := func (c Coord) bool {
+		return s.IsBody(c) || s.IsHead(c)
+	}
+
+	nmoves := 0
+
+	left, okLeft := LeftCell(head)
+	if okLeft && !IsBlocked(left) { 
+		moves[nmoves].dir = "left"
+		moves[nmoves].c = left
+		nmoves++
+	}
+	
+	right, okRight := RightCell(head)
+	if okRight && !IsBlocked(right) {
+		moves[nmoves].dir = "right"
+		moves[nmoves].c = right
+		nmoves++
+	}
+
+	up, okUp := UpCell(head)
+	if okUp && !IsBlocked(up) {
+		moves[nmoves].dir = "up"
+		moves[nmoves].c = up
+		nmoves++
+	}
+
+	down, okDown := DownCell(head) 
+	if okDown && !IsBlocked(down) {
+		moves[nmoves].dir = "down"
+		moves[nmoves].c = down
+		nmoves++
+	}
+
+	if (nmoves == 0) {
+		debug.Printf("Suicide!")
+		return Left()
+	}
+
+	if (nmoves == 1) {
+		debug.Printf("Select %s because it is the only viable move")
+		return Result(moves[0].dir)
+	}
+
+	// Map spaces anchored at each valid adjacent cell
+	nspaces := 0
+	for _,move := range moves {
+		if (s.grid[move.c.X][move.c.Y].space > 0) { continue }
+
+		nspaces++
+		s.spaces[nspaces].size = s.MapSpace(move.c,nspaces)
+
+		// Count the number of snakes bounding the space
+		nsnakes := 0
+		for _,snakeInSpace := range s.spaces[nspaces].snakes {
+			if (snakeInSpace) { nsnakes++ }
+		}
+		s.spaces[nspaces].nsnakes = nsnakes
+		s.spaces[nspaces].self = nsnakes == 1 && s.spaces[nspaces].snakes[1]
+	}
+
+	// Rule out moves where we'd be entering a space where there is too little room for us
+	Exclude := func (x int) {
+		for i := x+1; i < nmoves; i++ {
+			moves[i-1] = moves[i]
+		} 
+		nmoves--
+	}
+
+	// For spaces which are bounded by just our snake, we should not enter if the size is
+	// smaller than half our length plus the number of food discs in the space.  The reason
+	// is that, worst case, we will enter the region, eat all the food and grow our length
+	// by that much.
+	//
+	// For other spaces, we should not enter if the size of the space is smaller than our 
+	// length.  This is conservative since the boundign snakes will be moving so other 
+	// heuristics are possible here.
+
+	myLength := s.snakes[1].length
+	for mx := 0; mx < nmoves; {
+		move := moves[mx]
+		space := s.grid[move.c.X][move.c.Y].space
+		if s.spaces[space].self {
+			if s.spaces[space].size < myLength/2 + s.spaces[space].nfood {
+				debug.Printf("Exclude %s because it is a self-bounded region that is too small", move.dir)
+				Exclude(mx)
+				continue
+			}	
+		} else if s.spaces[space].size < myLength {
+			debug.Printf("Exclude %s because it is a region that is too small", move.dir)
+			Exclude(mx)
+			continue
+		}
+		mx++
+	}
+
+	if (nmoves == 0) {
+		debug.Printf("Suicide!")
+		return Left()
+	}
+
+	if (nmoves == 1) {
+		debug.Printf("Select %s because it is the only viable move")
+		return Result(moves[0].dir)
+	}
+
+	AdjacentSnakeHeads := func (c Coord) (int,int) {
+		nlonger := 0
+		nshorter := 0
+
+		left, okLeft := LeftCell(c)
+		if okLeft && s.IsHead(left) && left != head { 
+			length := s.snakes[s.SnakeNo(left)].length
+			if length >= myLength { 
+				nlonger++ 
+			} else {
+				nshorter++
+			}
+		}
+		
+		right, okRight := RightCell(c)
+		if okRight && s.IsHead(right) && right != head {
+			length := s.snakes[s.SnakeNo(right)].length
+			if length >= myLength { 
+				nlonger++ 
+			} else {
+				nshorter++
+			}
+		}
+	
+		up, okUp := UpCell(c)
+		if okUp && s.IsHead(up) && up != head {
+			length := s.snakes[s.SnakeNo(up)].length
+			if length >= myLength { 
+				nlonger++ 
+			} else {
+				nshorter++
+			}
+		}
+	
+		down, okDown := DownCell(c) 
+		if okDown && s.IsHead(down) && down != head {
+			length := s.snakes[s.SnakeNo(down)].length
+			if length >= myLength { 
+				nlonger++ 
+			} else {
+				nshorter++
+			}
+		}
+
+		return nlonger, nshorter
+	}
+	
+	// If any moves have an adjacent head from a longer snake, then avoid those moves
+	// If these moves have an adjacent head from a shorter snake, move to take it out
+	// unless we are in critical health
+
+	myHealth := y.Health
+	for mx := 0; mx < nmoves; {
+		move := moves[mx]
+		nlonger, nshorter := AdjacentSnakeHeads(move.c)
+
+		if nlonger > 0 { 
+			debug.Printf("Exclude %s because it is adjacent to the head of a loner snake", move.dir)
+			Exclude(mx); 
+			continue 
+		}
+
+		if nshorter > 0 && myHealth > s.food[0].dist { 
+			debug.Printf("Select %s because we have the opportunity to take out a shorter snake", move.dir)
+			return Result(move.dir) 
+		}
+
+		mx++
+	}
+	
+	if (nmoves == 0) {
+		debug.Printf("Suicide!")
+		return Left()
+	}
+
+	if (nmoves == 1) {
+		debug.Printf("Select %s because it is the only viable move")
+		return Result(moves[0].dir)
+	}
+
+	// TODO: at this point, we can choose to chase food, prefer a larger space to move into,
+	// or aim to attack smaller snakes.  We'll opt to chase food now but this choice will
+	// depend on our length relative to other snakes (esp. in a 2-snake end game) and on
+	// our present health
+
+	// Choose the move that makes best progress toward food
+	var foodDist [3]int
+	for mx := 0; mx < nmoves; mx++ {
+		move := moves[mx]
+
+		if s.IsFood(move.c) { 
+			debug.Printf("Select %s because there is a food disc there")
+			return Result(move.dir) 
+		}
+
+		foodDist[mx] = s.h+s.w
+		for _,food := range s.food {
+			mdist := ManDist(move.c,food.pos)
+			if mdist < food.dist {
+				foodDist[mx] = mdist
+				break;
+			}
+		}
+	}
+
+	least := 0
+	for mx := 1; mx < nmoves; mx++ {
+		if foodDist[mx] < foodDist[least] { least = mx }
+	}
+
+	debug.Printf("Select %s because it makes the best progress toward food")
+	return Result(moves[least].dir)
+}
+
+// HandleMove is called for each turn of each game.
+// Valid responses are "up", "down", "left", or "right".
+func HandleMove(w http.ResponseWriter, r *http.Request) {
+	request := MoveRequest{}
+	json.NewDecoder(r.Body).Decode(&request)
+
+	direction := FindMove (request.Game, request.Turn, request.Board, request.You)
+
+	response := MoveResponse { direction, "" }
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 // HandleStart is called at the start of each game your Battlesnake is playing.
 // The StartRequest object contains information about the game that's about to start.
+var colorPicker uint32
 func HandleStart(w http.ResponseWriter, r *http.Request) {
 	request := StartRequest{}
 	json.NewDecoder(r.Body).Decode(&request)
@@ -114,576 +724,11 @@ func HandleStart(w http.ResponseWriter, r *http.Request) {
 		TailType: "skinny",
 	}
 
-	var state SnakeState;
-	state.SelfID = request.You.ID
-	state.Color = colors[cx].name
-
 	mySnakes.Lock()
-	mySnakes.m[request.You.ID] = state
+	mySnakes.m[request.You.ID] = colors[cx].name
 	mySnakes.Unlock()
 
-	fmt.Print("START: COLOR=%s\n", state.Color)
-	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
-}
-
-// Absolute value
-func Abs (x int) int {
-	if x < 0 {
-		return -x
-	} else {
-		return x
-	}
-}
-
-// Compute manhattan distance between two cells
-func ManDist (a, b Coord) int {
-	return Abs(a.X-b.X) + Abs(a.Y-b.Y)
-}
-
-// Translate a coordinate
-func Translate (a Coord, dx, dy int) Coord {
-	return Coord{ a.X+dx, a.Y+dy }
-}
-
-// HandleMove is called for each turn of each game.
-// Valid responses are "up", "down", "left", or "right".
-func HandleMove(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-
-	request := MoveRequest{}
-	json.NewDecoder(r.Body).Decode(&request)
-
-	mySnakes.RLock()
-	var state = mySnakes.m[request.You.ID]
-	mySnakes.RUnlock()
-
-	color := state.Color
-	fmt.Printf("MOVE: COLOR=%s, Turn=%d\n", color, request.Turn)
-
-	// We create a local copy of the board where each cell
-	// contains a value that indicates what it contains 
-	//
-	// Values in the cell are the following:
-	// 		0		Empty
-	//		1		Food
-	//		3^k 	Body of snake k, k >= 1
-	//		3^k+1	Head of snake k, k >= 1
-	//		3^k+2	Tail of snake k, k >= 1
-	//
-	// k=1 is always self
-
-	var height = request.Board.Height
-	var width = request.Board.Width
-	
-	var grid = make ([][]int, width)
-	for i := range grid {
-		grid[i] = make([]int, height)
-	}
-
-	/*
-	IsEmpty := func (c int) bool {
-		return c == 0
-	}
-	*/
-	IsFood := func (c int) bool {
-		return c == 1
-	}
-	IsBody := func (c int) bool {
-		return c > 2 && c%3 == 0
-	}
-	IsHead := func (c int) bool {
-		return c > 2 && c%3 == 1
-	}
-	IsTail := func (c int) bool {
-		return c > 2 && c%3 == 2
-	}
-	IsSelf := func (c int) bool {
-		return c/3 == 1
-	}
-	IsSpace := func (c int) bool {
-		return c < 3
-	}
-	/*
-	SnakeNo := func (c int) int {
-		return c/3
-	}
-	*/
-
-	// Used to map snake number to snake ID
-	var sv = make([]string,len(request.Board.Snakes)+1)
-	/*
-	SnakeID := func (c int) string {
-		return sv[SnakeNo(c)]
-	}
-	*/
-
-	// add snakes to board grid
-	var ns = 2
-	var myHead Coord
-	for _,snake := range request.Board.Snakes {
-		sx := 1
-		if snake.ID != request.You.ID {
-			sx = ns
-			ns++
-		}
-
-		sv[sx] = snake.ID
-
-		head := snake.Body[0]
-		grid[head.X][head.Y] = 3 * sx + 1
-
-		sz := len(snake.Body)
-		for i := 1; i < sz-1; i++ {
-			pos := snake.Body[i]
-			grid[pos.X][pos.Y] = 3 * sx
-		}
-
-		tail := snake.Body[sz-1]
-		grid[tail.X][tail.Y] = 3 * sx + 2
-
-		if sx == 1 {
-			myHead = head
-		}
-	}
-
-	// add food to board
-	type FoodVect struct {
-		pos Coord
-		dist int
-	}
-
-	var fv = make ([]FoodVect, len(request.Board.Food))
-
-	for index,food := range request.Board.Food {
-		grid[food.X][food.Y] = 1
-		fv[index].pos = food
-		fv[index].dist = ManDist(food,myHead)
-	}
-
-	sort.Slice(fv, func(i, j int) bool {
-		return fv[i].dist < fv[j].dist
-	})
-
-	// Examine state around my snake head
-	var moves = []struct { 
-		label string 
-		dx, dy int 
-	} {
-		{ "left",  -1, 	0 },
-		{ "right", +1, 	0 },
-		{ "up",    	0, -1 },
-		{ "down",   0, +1 },
-	} 
-	
-	type MoveOption struct {
-		label string
-		dist int
-		risky bool
-		sides int
-		trap bool
-		region int
-		corner bool
-	} 
-
-	IsCorner := func(s Coord) bool {
-		return (s.X == 0 || s.X == width-1) && (s.Y == 0 || s.Y == height-1)
-	}
-
-	vm := make([]MoveOption,4)
-	numvm := 0
-	for _,move := range moves {
-		var c = Translate(myHead,move.dx,move.dy)
-
-		fmt.Printf("[COLOR=%s, Consider %s]\n", color, move.label);
-
-		// Check if at boundary
-		if c.X < 0 || c.X >= width || c.Y < 0 || c.Y >= height {
-			fmt.Printf("[COLOR=%s, Reject %s: boundary]\n", color, move.label);
-		    continue
-		}
-		
-		// Check if we will collide with another snake
-		var cdata = grid[c.X][c.Y]
-		if IsBody(cdata) || IsHead(cdata) ||
-		   ( IsSelf(cdata) && IsTail(cdata) ) {
-			fmt.Printf("[COLOR=%s, Reject %s: snake body or head]\n", color, move.label);
-			continue
-		}
-
-		// Cell will be empty next turn but check if
-		// we would colliude with a snake if we moved there
-		mx := numvm
-		numvm++
-		vm[mx].label = move.label
-		vm[mx].sides = 0
-		vm[mx].risky = IsTail(cdata)
-		vm[mx].trap = false
-		vm[mx].region = 0
-		vm[mx].corner = IsCorner(c)
-
-		for _,adj := range moves {
-			ac := Translate(c,adj.dx,adj.dy)
-
-			if ac.X == myHead.X && ac.Y == myHead.Y {
-				continue
-			}
-
-			if ac.X < 0 || ac.X >= width || 
-			   ac.Y < 0 || ac.Y >= height {
-				vm[mx].sides++
-				continue
-			}
-
-			adata := grid[ac.X][ac.Y]
-			if IsHead(adata) {
-				vm[mx].risky = true; 
-			} else if IsBody(adata) {
-				vm[mx].sides++
-			}
-		}
-
-		maxFill := len(request.You.Body)
-		filled := make(map[Coord]bool)
-		var FillArea func (Coord) int
-		FillArea = func (s Coord) int {
-			_, alreadyFilled := filled[s]
-			if alreadyFilled { return 0 }
-
-			count := 1
-			filled[s] = true
-
-			west := Translate(s,-1,0)
-			if west.X >= 0 && IsSpace(grid[west.X][west.Y]) {
-				count += FillArea(west)
-				if count > maxFill { return count }
-			} 
-
-			north := Translate(s,0,-1)
-			if north.Y >= 0 && IsSpace(grid[north.X][north.Y]) {
-				count += FillArea(north)
-				if count > maxFill { return count }
-			}
-
-			east := Translate(s,+1,0)
-			if east.X < width && IsSpace(grid[east.X][east.Y]) {
-				count += FillArea(east)
-				if count > maxFill { return count }
-			}
-
-			south := Translate(s,0,+1)
-			if south.Y < height && IsSpace(grid[south.X][south.Y]) {
-				count += FillArea(south)
-			}
-
-			return count
-		}
-
-		var SelfBounded func (Coord) bool
-		SelfBounded = func (s Coord) bool {
-			_, alreadyFilled := filled[s]
-			if alreadyFilled { return true }
-
-			filled[s] = true
-
-			west := Translate(s,-1,0)
-			if west.X >= 0 {
-				c := grid[west.X][west.Y]
-				if IsSpace(c) {
-					if !SelfBounded(west) { return false }
-				} else if !IsSelf(c) { return false }
-			} 
-
-			north := Translate(s,0,-1)
-			if north.Y >= 0 {
-				c := grid[north.X][north.Y]
-				if IsSpace(c) {
-					if !SelfBounded(north) { return false }
-				} else if !IsSelf(c) { return false; }
-			}
-
-			east := Translate(s,+1,0)
-			if east.X < width {
-				c := grid[east.X][east.Y]
-				if IsSpace(c) {
-					if !SelfBounded(east) { return false }
-				} else if !IsSelf(c) { return false }
-			}
-
-			south := Translate(s,0,+1)
-			if south.Y < height {
-				c := grid[south.X][south.Y]
-				if IsSpace(c) {
-					if !SelfBounded(south) { return false }
-				} else if !IsSelf(c) { return false }
-			}
-
-			return true
-		}
-
-		if vm[mx].sides == 3 {
-			numvm--
-			fmt.Printf("[COLOR=%s, Reject %s: moving into trap]\n", color, move.label);
-			continue;
-		} else if vm[mx].sides > 0 {
-			// determine if we would be entering a closed region whose number of tiles
-			// is smaller than the current snake length
-			area := FillArea(c)
-			if area <= len(request.You.Body) {
-				fmt.Printf("[COLOR=$s, Bounded region of size %d]\n", color, area)
-				vm[mx].trap = true
-				vm[mx].risky = true
-				for k := range filled {
-					delete(filled,k)
-				}
-				vm[mx].risky = true
-				if (SelfBounded(c)) {
-					vm[mx].region = -area
-				} else {
-					vm[mx].region = area
-				}
-			}
-		}
-
-		if IsFood(cdata) {
-			fmt.Printf("[COLOR=%s, Food at %s]\n", color, move.label);
-			vm[mx].dist = 0
-			continue
-		}
-
-		// Compute distance to closest food
-		vm[mx].dist = height + width
-		for _,food := range fv {
-			distToHere := ManDist(food.pos,myHead)
-			distToNew := ManDist(food.pos,c)
-			if distToNew < distToHere {
-				vm[mx].dist = distToNew 
-				break
-			}
-		}
-		fmt.Printf("[COLOR=%s, Dist to closest food is %d]\n", color, vm[mx].dist);
-	}
-
-	lowHealth := request.You.Health < fv[len(fv)-1].dist
-	criticalHealth := request.You.Health < 10
-
-	// Choose among valid moves
-	var chosenMove = "left"
-	fmt.Printf("[COLOR=%s, Consider %d valid moves\n", color, numvm)
-	switch numvm {
-	case 0:
-		chosenMove = "left"
-		fmt.Printf("[COLOR=%s, No valid moves, suicide: %s]\n", color, chosenMove)
-	case 1:
-		chosenMove = vm[0].label
-		fmt.Printf("[COLOR=%s, Only one valid move: %s]\n", color, chosenMove)
-	case 2:
-		// if both moves are traps, pick the one with the best chance of escape
-		if vm[0].trap && vm[1].trap {
-			if vm[0].region > 0 {
-				if vm[1].region < vm[0].region { 
-					chosenMove = vm[0].label
-				} else {
-					chosenMove = vm[1].label
-				}
-			} else if vm[1].region > 0 {
-				chosenMove = vm[1].label
-			} else if vm[0].region < vm[1].region {
-				chosenMove = vm[0].label
-			} else {
-				chosenMove = vm[1].label
-			}
-			fmt.Printf("[COLOR=%s, Two moves, both traps, pick one with greater chance: %s]\n", color, chosenMove)
-		} else if vm[0].trap {
-			chosenMove = vm[1].label
-		} else if vm[1].trap {
-			chosenMove = vm[0].label
-		} else {
-			// if both moves are risky, pick the one with fewer sides
-			if vm[0].risky && vm[1].risky {
-				if vm[0].sides < vm[1].sides {
-					chosenMove = vm[0].label
-				} else {
-					chosenMove = vm[1].label
-				}
-				fmt.Printf("[COLOR=%s, Two moves, both risky.  Choose one with fewer sides: %s]\n", color, chosenMove);
-			} else {
-				// if one is risky, pick the other
-				if (vm[0].risky) {
-					chosenMove = vm[1].label
-					fmt.Printf("[COLOR=%s, Two moves, one risky.  Choose the other one: %s]\n", color, chosenMove);
-				} else if vm[1].risky {
-					chosenMove = vm[0].label
-					fmt.Printf("[COLOR=%s, Two moves, one risky.  Choose the other one: %s]\n", color, chosenMove);
-				} else {
-					// FORCE the checks below to seek food (can reverse later if needed)
-					criticalHealth = true
-
-					// if one has food, choose that one
-					// but only if sides < 2 or criticalHealth
-					// note exception is when the cell is one of the corners
-					if vm[0].dist == 0 && (criticalHealth || vm[0].sides < 2 || vm[0].corner) {
-						chosenMove = vm[0].label
-						fmt.Printf("[COLOR=%s, Two moves, one has food.  Choose it: %s]\n", color, chosenMove);
-					} else if vm[1].dist == 0 && (criticalHealth || vm[1].sides < 2 || vm[1].corner) {
-						chosenMove = vm[1].label
-						fmt.Printf("[COLOR=%s, Two moves, one has food.  Choose it: %s]\n", color, chosenMove);
-					} else {
-						if (lowHealth) {
-							// chooose the one with smaller dist
-							if vm[0].dist < vm[1].dist {
-								chosenMove = vm[0].label
-								fmt.Printf("[COLOR=%s, Two moves, low health, one has lower dist.  Choose it: %s]\n", color, chosenMove);
-							} else if vm[1].dist < vm[0].dist {
-								chosenMove = vm[1].label
-								fmt.Printf("[COLOR=%s, Two moves, low health, one has lower dist.  Choose it: %s]\n", color, chosenMove);
-							} else {
-								// choose the one with fewer sides
-								if vm[0].sides < vm[1].sides {
-									chosenMove = vm[0].label
-									fmt.Printf("[COLOR=%s, Two moves, low health, one has fewer sides.  Choose it: %s]\n", color, chosenMove);
-								} else {
-									chosenMove = vm[1].label
-									fmt.Printf("[COLOR=%s, Two moves, low health, one has fewer sides.  Choose it: %s]\n", color, chosenMove);
-								}
-							}
-						} else {
-							// if one has 2 sides, choose the other one
-							if vm[1].sides == 2 {
-								chosenMove = vm[0].label
-								fmt.Printf("[COLOR=%s, Two moves, one has fewer sides.  Choose it: %s]\n", color, chosenMove);
-							} else if vm[0].sides == 2 {
-								chosenMove = vm[1].label
-								fmt.Printf("[COLOR=%s, Two moves, one has fewer sides.  Choose it: %s]\n", color, chosenMove);
-							} else {
-								// choose the one with smaller dist
-								if vm[0].dist < vm[1].dist {
-									chosenMove = vm[0].label
-									fmt.Printf("[COLOR=%s, Two moves, one has lower dist.  Choose it: %s]\n", color, chosenMove);
-								} else {
-									chosenMove = vm[1].label
-									fmt.Printf("[COLOR=%s, Two moves, one has lower dist.  Choose it: %s]\n", color, chosenMove);
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	default:
-		// if all moves are traps, choose the one with best chance of escape
-		// if all moves risky, choose the one with the fewest sides
-		if vm[0].trap && vm[1].trap && vm[2].trap {
-			if vm[0].region < 0 && vm[1].region < 0 && vm[2].region < 0 {
-				least := 0
-				if (vm[1].region < vm[least].region) { least = 1 }
-				if (vm[2].region < vm[least].region) { least = 2 }
-				chosenMove = vm[least].label
-			} else {
-				most := 0
-				if (vm[1].region > vm[most].region) { most = 1 }
-				if (vm[2].region > vm[most].region) { most = 2 }
-				chosenMove = vm[most].label
-			}
-		} else if vm[0].trap && vm[1].trap {
-			chosenMove = vm[2].label
-		} else if vm[0].trap && vm[2].trap {
-			chosenMove = vm[1].label
-		} else if vm[1].trap && vm[2].trap {
-			chosenMove = vm[0].label
-		} else {
-			if vm[0].risky && vm[1].risky && vm[2].risky {
-				least := 0
-				if (vm[0].trap) { least = 1 }
-				if (vm[1].sides < vm[least].sides && !vm[1].trap) { least = 1 }
-				if (vm[2].sides < vm[least].sides && !vm[2].trap) { least = 2 }
-				chosenMove = vm[least].label
-				fmt.Printf("[COLOR=%s, Three moves, all risky.  Choose one with fewest sides: %s]\n", color, chosenMove);
-			} else {
-				// if two are risky, choose the other one unless its a trap
-				if vm[0].risky && vm[1].risky {
-					if vm[2].trap { 
-						chosenMove = vm[0].label 
-					} else { chosenMove = vm[2].label }
-					fmt.Printf("[COLOR=%s, Three moves, two risky.  Choose the non-risky one: %s]\n", color, chosenMove);
-				} else if vm[0].risky && vm[2].risky {
-					if vm[1].trap { 
-						chosenMove = vm[0].label 
-					} else { chosenMove = vm[1].label }
-					fmt.Printf("[COLOR=%s, Three moves, two risky.  Choose the non-risky one: %s]\n", color, chosenMove);
-				} else if vm[1].risky && vm[2].risky {
-					if vm[0].trap { 
-						chosenMove = vm[1].label 
-					} else { chosenMove = vm[0].label }
-					fmt.Printf("[COLOR=%s, Three moves, two risky.  Choose the non-risky one: %s]\n", color, chosenMove);
-				} else {
-					// FORCE the checks below to seek food (can reverse later if needed)
-					criticalHealth = true
-
-					// if one has food, pick that one
-					if vm[0].dist == 0 && !vm[0].risky && (criticalHealth || vm[0].sides < 2 || vm[0].corner) {
-						chosenMove = vm[0].label
-						fmt.Printf("[COLOR=%s, Three moves, one has food.  Choose it: %s]\n", color, chosenMove);
-					} else if vm[1].dist == 0 && !vm[1].risky && (criticalHealth || vm[1].sides < 2 || vm[1].corner) {
-						chosenMove = vm[1].label
-						fmt.Printf("[COLOR=%s, Three moves, one has food.  Choose it: %s]\n", color, chosenMove);
-					} else if vm[2].dist == 0 && !vm[2].risky && (criticalHealth || vm[2].sides < 2 || vm[2].corner) {
-						chosenMove = vm[2].label
-						fmt.Printf("[COLOR=%s, Three moves, one has food.  Choose it: %s]\n", color, chosenMove);
-					} else {				
-						if (lowHealth) {
-							// if dist is all the same, then choose the non-risky one with fewest sides
-							if vm[0].dist == vm[1].dist && vm[1].dist == vm[2].dist {
-								least := 0
-								if vm[0].risky { least = 1 }
-								if vm[1].sides < vm[least].sides && !vm[1].risky { least = 1 }
-								if vm[2].sides < vm[least].sides && !vm[2].risky { least = 2 }
-								chosenMove = vm[least].label
-								fmt.Printf("[COLOR=%s, Three moves, low health, pick non-risky one with least sides: %s]\n", color, chosenMove);
-							} else {
-								// choose the non-risky one with the least dist
-								least := 0
-								if vm[0].risky { least = 1 }
-								if vm[1].dist < vm[least].dist && !vm[1].risky { least = 1 }
-								if vm[2].dist < vm[least].dist && !vm[2].risky { least = 2 }
-								chosenMove = vm[least].label
-								fmt.Printf("[COLOR=%s, Three moves, low health, pick non-risky one with least dist: %s]\n", color, chosenMove);
-							}
-						} else {
-							// if all have equal sides, or none have more than 1, then choose the non-risky one with smallest dist
-							if vm[0].sides == vm[1].sides && vm[1].sides == vm[2].sides ||
-							vm[0].sides < 2 && vm[1].sides < 2 && vm[2].sides < 2 {
-								least := 0
-								if vm[0].risky { least = 1 }
-								if (vm[1].dist < vm[least].dist && !vm[1].risky) { least = 1 }
-								if (vm[2].dist < vm[least].dist && !vm[2].risky) { least = 2 }
-								chosenMove = vm[least].label
-								fmt.Printf("[COLOR=%s, Three moves, pick non-risky one with least dist: %s]\n", color, chosenMove);
-							} else {
-								// choose the non-risky one with least number of sides
-								least := 0
-								if vm[0].risky {
-									least = 1
-								}
-								if (vm[1].sides < vm[least].sides && !vm[1].risky) { least = 1 }
-								if (vm[2].sides < vm[least].sides && !vm[2].risky) { least = 2 }
-								chosenMove = vm[least].label
-								fmt.Printf("[COLOR=%s, Three moves, pick non-risky one with least sides: %s]\n", color, chosenMove);
-							}
-						}
-					}
-				}
-			}
-		}
-	} 
-
-	response := MoveResponse { chosenMove,
-							   "", // shout
-							 }
-
-	elapsed := time.Since(start)
-	fmt.Printf("MOVE: COLOR=%s, Direction=%s, Elapsed=%dms\n", color, response.Move, elapsed.Milliseconds())
+	fmt.Print("INFO(%s): Start\n", colors[cx].name)
 	
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
@@ -695,6 +740,8 @@ func HandleEnd(w http.ResponseWriter, r *http.Request) {
 	request := EndRequest{}
 	json.NewDecoder(r.Body).Decode(&request)
 
+	// TODO: clean up any context 
+
 	// Nothing to respond with here
 	fmt.Print("END\n")
 }
@@ -705,10 +752,15 @@ func main() {
 		port = "8080"
 	}
 
-	mySnakes.m = make(map[string]SnakeState)
+	mySnakes.m = make(map[string]string)
 
-	http.HandleFunc("/", HandleIndex)
-	http.HandleFunc("/ping", HandlePing)
+	http.HandleFunc("/", func (w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "Spacey Snake is alive!")
+	})
+
+	http.HandleFunc("/ping", func (w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "One ping only please.")
+	})	
 
 	http.HandleFunc("/start", HandleStart)
 	http.HandleFunc("/move", HandleMove)
