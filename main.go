@@ -482,31 +482,55 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	nmoves := 0
 
 	left, okLeft := LeftCell(head)
-	if okLeft && !IsBlocked(left) { 
-		moves[nmoves].dir = "left"
-		moves[nmoves].c = left
-		nmoves++
+	if okLeft {
+		if IsBlocked(left) { 
+			debug.Printf("Direction left blocked by snake head or body\n")
+		} else {
+			moves[nmoves].dir = "left"
+			moves[nmoves].c = left
+			nmoves++
+		}
+	} else {
+		debug.Printf("Direction left blocked by grid boundary\n")
 	}
 	
 	right, okRight := RightCell(head)
-	if okRight && !IsBlocked(right) {
-		moves[nmoves].dir = "right"
-		moves[nmoves].c = right
-		nmoves++
+	if okRight {
+		if IsBlocked(right) {
+			debug.Printf("Direction right blocked by snake head or body\n")
+		} else {
+			moves[nmoves].dir = "right"
+			moves[nmoves].c = right
+			nmoves++
+		}
+	} else {
+		debug.Printf("Direction right blocked by grid boundary\n")
 	}
 
 	up, okUp := UpCell(head)
-	if okUp && !IsBlocked(up) {
-		moves[nmoves].dir = "up"
-		moves[nmoves].c = up
-		nmoves++
+	if okUp {
+		if IsBlocked(up) {
+			debug.Printf("Direction up blocked by snake head or body\n")
+		} else {
+			moves[nmoves].dir = "up"
+			moves[nmoves].c = up
+			nmoves++
+		}
+	} else {
+		debug.Printf("Direction up blocked by grid boundary\n")
 	}
 
 	down, okDown := DownCell(head) 
-	if okDown && !IsBlocked(down) {
-		moves[nmoves].dir = "down"
-		moves[nmoves].c = down
-		nmoves++
+	if okDown {
+		if IsBlocked(down) {
+			debug.Printf("Direction down blocked by snake head or body\n")
+		} else {
+			moves[nmoves].dir = "down"
+			moves[nmoves].c = down
+			nmoves++
+		}
+	} else {
+		debug.Printf("Direction down blocked by grid boundary\n")
 	}
 
 	debug.Printf("Check if 0 or 1 moves\n")
@@ -517,7 +541,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	}
 
 	if (nmoves == 1) {
-		debug.Printf("Select %s because it is the only viable move\n")
+		debug.Printf("Select %s because it is the only viable move\n", moves[0].dir)
 		return Result(moves[0].dir)
 	}
 
