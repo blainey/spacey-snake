@@ -357,7 +357,7 @@ func (s GameState) Initialize (g Game, t int, b Board, y Snake) {
 		s.grid[i] = make([]GameCell, s.h)
 	}
 
-	debug.Printf("Allocate snakes vector\n")
+	debug.Printf("Allocate snakes vector, len=%d\n",len(b.Snakes))
 	s.snakes = make ([]SnakeState, len(b.Snakes))
 
 	myHead := y.Body[0]
@@ -436,6 +436,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	var s GameState
 	s.Initialize(g,t,b,y)
 
+	debug.Printf("read my head, %d snakes\n", len(s.snakes))
 	head := s.snakes[1].head
 
 	if (t == 0) {
