@@ -435,6 +435,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
 	var s GameState
 	s.Initialize(g,t,b,y)
+
 	head := s.snakes[1].head
 
 	if (t == 0) {
@@ -467,6 +468,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
  	// Now, there are up to three possible directions we can move, since our own body
 	// will block at least one direction
+	debug.Printf("Enumerate possiible moves")
 	var moves [3]struct {
 		dir string
 		c Coord
@@ -506,6 +508,8 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		nmoves++
 	}
 
+	debug.Printf("Check if 0 or 1 moves")
+
 	if (nmoves == 0) {
 		debug.Printf("Suicide!")
 		return Left()
@@ -517,6 +521,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	}
 
 	// Map spaces anchored at each valid adjacent cell
+	debug.Printf("Map spaces around our head")
 	nspaces := 0
 	for _,move := range moves {
 		if (s.grid[move.c.X][move.c.Y].space > 0) { continue }
