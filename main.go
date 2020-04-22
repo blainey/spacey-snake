@@ -156,7 +156,7 @@ func (c GameCell) IsSelf() bool {
 }
 
 func (c GameCell) SnakeNo() int {
-	return int(c.content) / 3
+	return int(c.content) / 3 - 1
 }
 
 func FoodCell() GameCell { 
@@ -439,7 +439,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	var s GameState
 	s.Initialize(g,t,b,y)
 
-	head := s.snakes[1].head
+	head := s.snakes[0].head
 
 	if t == 0 {
 		// Special case, we can move in any direction, so just move toward the closest food
@@ -564,7 +564,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 			if (snakeInSpace) { nsnakes++ }
 		}
 		s.spaces[nspaces].nsnakes = nsnakes
-		s.spaces[nspaces].self = nsnakes == 1 && s.spaces[nspaces].snakes[1]
+		s.spaces[nspaces].self = nsnakes == 1 && s.spaces[nspaces].snakes[0]
 	}
 
 	// Rule out moves where we'd be entering a space where there is too little room for us
@@ -585,7 +585,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// heuristics are possible here.
 
 	debug.Printf("Check for infeasibly small adjacent spaces\n")
-	myLength := s.snakes[1].length
+	myLength := s.snakes[0].length
 	for mx := 0; mx < nmoves; {
 		move := moves[mx]
 		space := s.grid[move.c.X][move.c.Y].space
