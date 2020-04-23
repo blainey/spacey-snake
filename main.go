@@ -302,7 +302,7 @@ func (s *GameState) MapSpace (c Coord, space int) int {
 	top := 0
 	stack[top] = c
 
-	s.spaces[space].snakes = make([]bool, len(s.snakes))
+	s.spaces[space].snakes = make([]bool, len(s.snakes)+1)
 
 	count := 0
 	for top >= 0 {
@@ -343,18 +343,15 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 	s.h = b.Height
 	s.w = b.Width
 	
-	s.debug.Printf("Allocate game grid\n")
 	s.grid = make ([][]GameCell, s.w)
 	for i := range s.grid {
 		s.grid[i] = make([]GameCell, s.h)
 	}
 
-	s.debug.Printf("Allocate snakes vector, len=%d\n",len(b.Snakes))
-	s.snakes = make ([]SnakeState, len(b.Snakes))
+	s.snakes = make ([]SnakeState, len(b.Snakes)+1)
 
 	myHead := y.Body[0]
 
-	s.debug.Printf("Plot snakes on grid\n")
 	for sx,snake := range b.Snakes {
 		s.snakes[sx].ID = snake.ID
 
@@ -378,7 +375,6 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 
 	// Sort snakes in order of distance of their head from our head
 	// This will put our snake at index 0
-	s.debug.Printf("Sort snakes by distance\n")
 	sort.Slice(s.snakes, func(i, j int) bool {
 		return s.snakes[i].dist < s.snakes[j].dist
 	})
@@ -386,10 +382,8 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 		s.debug.Printf("Snake head:(%d,%d), dist=%d\n",snake.head.X,snake.head.Y,snake.dist)
 	}
 
-	s.debug.Printf("Allocate food vector\n")
 	s.food = make ([]FoodState, len(b.Food))
 
-	s.debug.Printf("Plot food discs on grid\n")
 	for fx,food := range b.Food {
 		s.grid[food.X][food.Y] = FoodCell()
 		s.food[fx].pos = food
@@ -397,7 +391,6 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 	}
 
 	// Sort food in order of distance from our head
-	s.debug.Printf("Sort food discs by distance\n")
 	sort.Slice(s.food, func(i, j int) bool {
 		return s.food[i].dist < s.food[j].dist
 	})
