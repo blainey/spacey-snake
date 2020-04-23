@@ -233,6 +233,8 @@ type FoodState struct {
 
 type GameState struct {
 	ID		string
+	debug	Log
+	info	Log
 	color	string
 	turn	int
 	h, w	int
@@ -280,10 +282,7 @@ func (s *GameState) SnakeNo(c Coord) int {
 // ----------------------------------------------------------------
 
 func (s *GameState) MapSpace (c Coord, space int) int {
-	//debug := NewLogger(y.ID, "DEBUG")
-	//info := NewLogger(y.ID, "INFO")
-
-	//debug.Printf("MapSpace: c=(%d,%d), space=%d\n", c.X, c.Y, space)
+	s.debug.Printf("MapSpace: c=(%d,%d), space=%d\n", c.X, c.Y, space)
 	if s.grid[c.X][c.Y].space != 0 { return 0 }
 
 	count := 1
@@ -303,6 +302,7 @@ func (s *GameState) MapSpace (c Coord, space int) int {
 	west := c; west.X--
 	if west.X >= 0 {
 		if IsOpen(west)  { 
+			s.debug.Printf("Map west: (%d,%d)\n", west.X, west.Y)
 			count += s.MapSpace(west,space) 
 		} else { 
 			TrackSnake(west) 
@@ -312,6 +312,7 @@ func (s *GameState) MapSpace (c Coord, space int) int {
 	north := c; north.Y--
 	if north.Y >= 0 {
 		if IsOpen(north) { 
+			s.debug.Printf("Map north: (%d,%d)\n", north.X, north.Y)
 			count += s.MapSpace(north,space) 
 		} else { 
 			TrackSnake(north) 
@@ -321,6 +322,7 @@ func (s *GameState) MapSpace (c Coord, space int) int {
 	east := c; east.X++
 	if east.X < s.w {
 		if IsOpen(east) { 
+			s.debug.Printf("Map east: (%d,%d)\n", east.X, east.Y)
 			count += s.MapSpace(east,space) 
 		} else { 
 			TrackSnake(east) 
@@ -330,6 +332,7 @@ func (s *GameState) MapSpace (c Coord, space int) int {
 	south := c; south.Y++
 	if south.Y < s.h {
 		if IsOpen(south) { 
+			s.debug.Printf("Map soouth: (%d,%d)\n", south.X, south.Y)
 			count += s.MapSpace(south,space) 
 		} else { 
 			TrackSnake(south) 
@@ -346,27 +349,24 @@ func (s *GameState) MapSpace (c Coord, space int) int {
 // ----------------------------------------------------------------
 
 func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
-	debug := NewLogger(y.ID, "DEBUG")
-	//info := NewLogger(y.ID, "INFO")
-
 	s.ID = g.ID
 	s.turn = t
 
 	s.h = b.Height
 	s.w = b.Width
 	
-	debug.Printf("Allocate game grid\n")
+	s.debug.Printf("Allocate game grid\n")
 	s.grid = make ([][]GameCell, s.w)
 	for i := range s.grid {
 		s.grid[i] = make([]GameCell, s.h)
 	}
 
-	debug.Printf("Allocate snakes vector, len=%d\n",len(b.Snakes))
+	s.debug.Printf("Allocate snakes vector, len=%d\n",len(b.Snakes))
 	s.snakes = make ([]SnakeState, len(b.Snakes))
 
 	myHead := y.Body[0]
 
-	debug.Printf("Plot snakes on grid\n")
+	s.debug.Printf("Plot snakes on grid\n")
 	for sx,snake := range b.Snakes {
 		s.snakes[sx].ID = snake.ID
 
@@ -390,18 +390,18 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 
 	// Sort snakes in order of distance of their head from our head
 	// This will put our snake at index 0
-	debug.Printf("Sort snakes by distance\n")
+	s.debug.Printf("Sort snakes by distance\n")
 	sort.Slice(s.snakes, func(i, j int) bool {
 		return s.snakes[i].dist < s.snakes[j].dist
 	})
 	for _,snake := range s.snakes {
-		debug.Printf("Snake head:(%d,%d), dist=%d\n",snake.head.X,snake.head.Y,snake.dist)
+		s.debug.Printf("Snake head:(%d,%d), dist=%d\n",snake.head.X,snake.head.Y,snake.dist)
 	}
 
-	debug.Printf("Allocate food vector\n")
+	s.debug.Printf("Allocate food vector\n")
 	s.food = make ([]FoodState, len(b.Food))
 
-	debug.Printf("Plot food discs on grid\n")
+	s.debug.Printf("Plot food discs on grid\n")
 	for fx,food := range b.Food {
 		s.grid[food.X][food.Y] = FoodCell()
 		s.food[fx].pos = food
@@ -409,7 +409,7 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 	}
 
 	// Sort food in order of distance from our head
-	debug.Printf("Sort food discs by distance\n")
+	s.debug.Printf("Sort food discs by distance\n")
 	sort.Slice(s.food, func(i, j int) bool {
 		return s.food[i].dist < s.food[j].dist
 	})
@@ -424,14 +424,15 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 func FindMove (g Game, t int, b Board, y Snake) string {
 	start := time.Now()
 
-	debug := NewLogger(y.ID, "DEBUG")
-	info := NewLogger(y.ID, "INFO")
+	var s GameState
+	s.debug = NewLogger(y.ID, "DEBUG")
+	s.info = NewLogger(y.ID, "INFO")
 
-	info.Printf("Move turn=%d\n", t)
+	s.info.Printf("Move turn=%d\n", t)
 
 	Result := func(dir string) string {
 		elapsed := time.Since(start)
-		info.Printf("Move result=%s, elapsed=%dms\n", dir, elapsed.Milliseconds())
+		s.info.Printf("Move result=%s, elapsed=%dms\n", dir, elapsed.Milliseconds())
 		return dir
 	}
 
@@ -440,7 +441,6 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	Up    := func() string { return Result("up")    }
 	Down  := func() string { return Result("down")  }
 
-	var s GameState
 	s.Initialize(g,t,b,y)
 
 	head := s.snakes[0].head
@@ -448,7 +448,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	if t == 0 {
 		// Special case, we can move in any direction, so just move toward the closest food
 		cf := s.food[0].pos
-		debug.Printf("Turn=0 special case, head=(%d,%d), cf=(%d,%d)\n",head.X,head.Y,cf.X,cf.Y)
+		s.debug.Printf("Turn=0 special case, head=(%d,%d), cf=(%d,%d)\n",head.X,head.Y,cf.X,cf.Y)
 		switch {
 			case cf.X < head.X: return Left()
 			case cf.X > head.X: return Right()
@@ -476,7 +476,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
  	// Now, there are up to three possible directions we can move, since our own body
 	// will block at least one direction
-	debug.Printf("Enumerate possiible moves\n")
+	s.debug.Printf("Enumerate possiible moves\n")
 	var moves [4]struct {
 		dir string
 		c Coord
@@ -491,73 +491,73 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	left, okLeft := LeftCell(head)
 	if okLeft {
 		if IsBlocked(left) { 
-			debug.Printf("Direction left blocked by snake head or body\n")
+			s.debug.Printf("Direction left blocked by snake head or body\n")
 		} else {
-			debug.Printf("Add left to possible moves, left=(%d,%d)[%d]\n",left.X,left.Y,s.grid[left.X][left.Y].content)
+			s.debug.Printf("Add left to possible moves, left=(%d,%d)[%d]\n",left.X,left.Y,s.grid[left.X][left.Y].content)
 			moves[nmoves].dir = "left"
 			moves[nmoves].c = left
 			nmoves++
 		}
 	} else {
-		debug.Printf("Direction left blocked by grid boundary\n")
+		s.debug.Printf("Direction left blocked by grid boundary\n")
 	}
 	
 	right, okRight := RightCell(head)
 	if okRight {
 		if IsBlocked(right) {
-			debug.Printf("Direction right blocked by snake head or body\n")
+			s.debug.Printf("Direction right blocked by snake head or body\n")
 		} else {
 			moves[nmoves].dir = "right"
 			moves[nmoves].c = right
 			nmoves++
 		}
 	} else {
-		debug.Printf("Direction right blocked by grid boundary\n")
+		s.debug.Printf("Direction right blocked by grid boundary\n")
 	}
 
 	up, okUp := UpCell(head)
 	if okUp {
 		if IsBlocked(up) {
-			debug.Printf("Direction up blocked by snake head or body\n")
+			s.debug.Printf("Direction up blocked by snake head or body\n")
 		} else {
 			moves[nmoves].dir = "up"
 			moves[nmoves].c = up
 			nmoves++
 		}
 	} else {
-		debug.Printf("Direction up blocked by grid boundary\n")
+		s.debug.Printf("Direction up blocked by grid boundary\n")
 	}
 
 	down, okDown := DownCell(head) 
 	if okDown {
 		if IsBlocked(down) {
-			debug.Printf("Direction down blocked by snake head or body\n")
+			s.debug.Printf("Direction down blocked by snake head or body\n")
 		} else {
 			moves[nmoves].dir = "down"
 			moves[nmoves].c = down
 			nmoves++
 		}
 	} else {
-		debug.Printf("Direction down blocked by grid boundary\n")
+		s.debug.Printf("Direction down blocked by grid boundary\n")
 	}
 
-	debug.Printf("Check if 0 or 1 moves\n")
+	s.debug.Printf("Check if 0 or 1 moves\n")
 
 	if (nmoves == 0) {
-		debug.Printf("Suicide!\n")
+		s.debug.Printf("Suicide!\n")
 		return Left()
 	}
 
 	if (nmoves == 1) {
-		debug.Printf("Select %s because it is the only viable move\n", moves[0].dir)
+		s.debug.Printf("Select %s because it is the only viable move\n", moves[0].dir)
 		return Result(moves[0].dir)
 	}
 
 	// Map spaces anchored at each valid adjacent cell
-	debug.Printf("Map spaces around our head\n")
+	s.debug.Printf("Map spaces around our head\n")
 	nspaces := 0
 	for _,move := range moves {
-		debug.Printf("check (%d,%d)\n",move.c.X,move.c.Y)
+		s.debug.Printf("check (%d,%d)\n",move.c.X,move.c.Y)
 		if (s.grid[move.c.X][move.c.Y].space > 0) { continue }
 
 		nspaces++
@@ -589,34 +589,34 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// length.  This is conservative since the boundign snakes will be moving so other 
 	// heuristics are possible here.
 
-	debug.Printf("Check for infeasibly small adjacent spaces\n")
+	s.debug.Printf("Check for infeasibly small adjacent spaces\n")
 	myLength := s.snakes[0].length
 	for mx := 0; mx < nmoves; {
 		move := moves[mx]
 		space := s.grid[move.c.X][move.c.Y].space
 		if s.spaces[space].self {
 			if s.spaces[space].size < myLength/2 + s.spaces[space].nfood {
-				debug.Printf("Exclude %s because it is a self-bounded region that is too small\n", move.dir)
+				s.debug.Printf("Exclude %s because it is a self-bounded region that is too small\n", move.dir)
 				Exclude(mx)
 				continue
 			}	
 		} else if s.spaces[space].size < myLength {
-			debug.Printf("Exclude %s because it is a region that is too small\n", move.dir)
+			s.debug.Printf("Exclude %s because it is a region that is too small\n", move.dir)
 			Exclude(mx)
 			continue
 		}
 		mx++
 	}
 
-	debug.Printf("Check if 0 or 1 moves\n")
+	s.debug.Printf("Check if 0 or 1 moves\n")
 
 	if (nmoves == 0) {
-		debug.Printf("Suicide!\n")
+		s.debug.Printf("Suicide!\n")
 		return Left()
 	}
 
 	if (nmoves == 1) {
-		debug.Printf("Select %s because it is the only viable move\n")
+		s.debug.Printf("Select %s because it is the only viable move\n")
 		return Result(moves[0].dir)
 	}
 
@@ -671,35 +671,35 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// If these moves have an adjacent head from a shorter snake, move to take it out
 	// unless we are in critical health
 
-	debug.Printf("Check for adjacent snake heads\n")
+	s.debug.Printf("Check for adjacent snake heads\n")
 	myHealth := y.Health
 	for mx := 0; mx < nmoves; {
 		move := moves[mx]
 		nlonger, nshorter := AdjacentSnakeHeads(move.c)
 
 		if nlonger > 0 { 
-			debug.Printf("Exclude %s because it is adjacent to the head of a loner snake\b", move.dir)
+			s.debug.Printf("Exclude %s because it is adjacent to the head of a loner snake\b", move.dir)
 			Exclude(mx); 
 			continue 
 		}
 
 		if nshorter > 0 && myHealth > s.food[0].dist { 
-			debug.Printf("Select %s because we have the opportunity to take out a shorter snake\n", move.dir)
+			s.debug.Printf("Select %s because we have the opportunity to take out a shorter snake\n", move.dir)
 			return Result(move.dir) 
 		}
 
 		mx++
 	}
 	
-	debug.Printf("Check if 0 or 1 moves\n")
+	s.debug.Printf("Check if 0 or 1 moves\n")
 
 	if (nmoves == 0) {
-		debug.Printf("Suicide!\n")
+		s.debug.Printf("Suicide!\n")
 		return Left()
 	}
 
 	if (nmoves == 1) {
-		debug.Printf("Select %s because it is the only viable move\n")
+		s.debug.Printf("Select %s because it is the only viable move\n")
 		return Result(moves[0].dir)
 	}
 
@@ -709,13 +709,13 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// our present health
 
 	// Choose the move that makes best progress toward food
-	debug.Printf("Choose the move that makes best progress toward food")
+	s.debug.Printf("Choose the move that makes best progress toward food")
 	var foodDist [3]int
 	for mx := 0; mx < nmoves; mx++ {
 		move := moves[mx]
 
 		if s.IsFood(move.c) { 
-			debug.Printf("Select %s because there is a food disc there")
+			s.debug.Printf("Select %s because there is a food disc there")
 			return Result(move.dir) 
 		}
 
@@ -734,7 +734,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		if foodDist[mx] < foodDist[least] { least = mx }
 	}
 
-	debug.Printf("Select %s because it makes the best progress toward food")
+	s.debug.Printf("Select %s because it makes the best progress toward food")
 	return Result(moves[least].dir)
 }
 
