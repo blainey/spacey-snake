@@ -459,7 +459,9 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		if t < 2 {
 			growing[sx] = true
 		} else {
+			// Search for food locations from last turn
 			for _,food := range context.food {
+				s.debug.Printf("Food at (%d,%d)\n,food.X,food.Y")
 				if food == snake.head {
 					growing[sx] = true
 					break
