@@ -165,19 +165,19 @@ func FoodCell() GameCell {
 
 func BodyCell(s int) GameCell {
 	var c GameCell
-	c.content = uint16(s) * 3
+	c.content = uint16(s+1) * 3
 	return c
 }
 
 func HeadCell(s int) GameCell {
 	var c GameCell
-	c.content = uint16(s) * 3 + 1
+	c.content = uint16(s+1) * 3 + 1
 	return c
 }
 
 func TailCell(s int) GameCell {
 	var c GameCell
-	c.content = uint16(s) * 3 + 2
+	c.content = uint16(s+1) * 3 + 2
 	return c
 }
 
