@@ -280,14 +280,10 @@ func (s *GameState) SnakeNo(c Coord) int {
 // of cells bounded by the bodies or heads of snakes, either
 // our own or others.
 // ----------------------------------------------------------------
-
 func (s *GameState) MapSpace (c Coord, space int) int {
-	s.debug.Printf("MapSpace: c=(%d,%d), space=%d\n", c.X, c.Y, space)
-	if s.grid[c.X][c.Y].space != 0 { return 0 }
-
-	count := 1
-	s.grid[c.X][c.Y].space = uint16(space)
-	if s.grid[c.X][c.Y].IsFood() { s.spaces[space].nfood++ }
+	stack := make([]Coord,s.h * s.w)
+	top := 0
+	stack[top] = c
 
 	IsOpen := func (c Coord) bool {
 		return s.IsEmpty(c) || s.IsFood(c) || s.IsTail(c)
@@ -299,43 +295,56 @@ func (s *GameState) MapSpace (c Coord, space int) int {
 		}
 	}
 
-	west := c; west.X--
-	if west.X >= 0 {
-		if IsOpen(west)  { 
-			//s.debug.Printf("Map west: (%d,%d)\n", west.X, west.Y)
-			count += s.MapSpace(west,space) 
-		} else { 
-			TrackSnake(west) 
-		}
-	} 
+	count := 0
+	for top >= 0 {
+		p := stack[top]
+		top--
 
-	north := c; north.Y--
-	if north.Y >= 0 {
-		if IsOpen(north) { 
-			//s.debug.Printf("Map north: (%d,%d)\n", north.X, north.Y)
-			count += s.MapSpace(north,space) 
-		} else { 
-			TrackSnake(north) 
-		}
-	}
+		pcell := s.grid[p.X][p.Y]
+		if (pcell.space == 0) { continue }
 
-	east := c; east.X++
-	if east.X < s.w {
-		if IsOpen(east) { 
-			//s.debug.Printf("Map east: (%d,%d)\n", east.X, east.Y)
-			count += s.MapSpace(east,space) 
-		} else { 
-			TrackSnake(east) 
-		}
-	} 
+		count++
+		s.grid[p.X][p.Y].space = uint16(space)
+		if pcell.IsFood() { s.spaces[space].nfood++ }
 
-	south := c; south.Y++
-	if south.Y < s.h {
-		if IsOpen(south) { 
-			//s.debug.Printf("Map south: (%d,%d)\n", south.X, south.Y)
-			count += s.MapSpace(south,space) 
-		} else { 
-			TrackSnake(south) 
+		west := p; west.X--
+		if west.X >= 0 {
+			if IsOpen(west)  { 
+				top++
+				stack[top] = west
+			} else { 
+				TrackSnake(west) 
+			}
+		} 
+	
+		north := p; north.Y--
+		if north.Y >= 0 {
+			if IsOpen(north) { 
+				top++
+				stack[top] = north 
+			} else { 
+				TrackSnake(north) 
+			}
+		}
+	
+		east := p; east.X++
+		if east.X < s.w {
+			if IsOpen(east) { 
+				top++
+				stack[top] = east
+			} else { 
+				TrackSnake(east) 
+			}
+		} 
+	
+		south := p; south.Y++
+		if south.Y < s.h {
+			if IsOpen(south) { 
+				top++
+				stack[top] = south 
+			} else { 
+				TrackSnake(south) 
+			}
 		}
 	}
 
