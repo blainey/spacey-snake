@@ -282,7 +282,7 @@ func (s *GameState) SnakeNo(c Coord) int {
 // ----------------------------------------------------------------
 
 func (s *GameState) MapSpace (c Coord, space int) int {
-	//s.debug.Printf("MapSpace: c=(%d,%d), space=%d\n", c.X, c.Y, space)
+	s.debug.Printf("MapSpace: c=(%d,%d), space=%d\n", c.X, c.Y, space)
 	if s.grid[c.X][c.Y].space != 0 { return 0 }
 
 	count := 1
@@ -557,7 +557,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	s.debug.Printf("Map spaces around our head\n")
 	nspaces := 0
 	for _,move := range moves {
-		s.debug.Printf("check (%d,%d)\n",move.c.X,move.c.Y)
+		s.debug.Printf("Check if (%d,%d) has already been mapped\n",move.c.X,move.c.Y)
 		if (s.grid[move.c.X][move.c.Y].space > 0) { continue }
 
 		nspaces++
