@@ -508,7 +508,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// Map spaces anchored at each valid adjacent cell
 	s.debug.Printf("Map spaces around our head\n")
 	nspaces := 0
-	for mx := 1; mx < nmoves; mx++ {
+	for mx := 0; mx < nmoves; mx++ {
 		move := moves[mx]
 		if (s.grid[move.c.X][move.c.Y].space > 0) { continue }
 
