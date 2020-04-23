@@ -308,7 +308,7 @@ func (s *GameState) MapSpace (c Coord, space int) int {
 		top--
 
 		pcell := s.grid[p.X][p.Y]
-		if (pcell.space == 0) { continue }
+		if (pcell.space != 0) { continue }
 
 		count++
 		s.grid[p.X][p.Y].space = uint16(space)
