@@ -332,7 +332,7 @@ func (s *GameState) MapSpace (c Coord, space int) int {
 	south := c; south.Y++
 	if south.Y < s.h {
 		if IsOpen(south) { 
-			s.debug.Printf("Map soouth: (%d,%d)\n", south.X, south.Y)
+			s.debug.Printf("Map south: (%d,%d)\n", south.X, south.Y)
 			count += s.MapSpace(south,space) 
 		} else { 
 			TrackSnake(south) 
