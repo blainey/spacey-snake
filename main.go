@@ -298,9 +298,11 @@ func (s *GameState) VisitNeighbours (c Coord, visitor func(Coord,string)) {
 // our own or others.
 // ----------------------------------------------------------------
 func (s *GameState) MapSpace (c Coord, space int) int {
-	stack := make([]Coord,s.h * s.w)
+	stack := make([]Coord, s.h * s.w)
 	top := 0
 	stack[top] = c
+
+	s.spaces[space].snakes = make([]bool, len(s.snakes))
 
 	count := 0
 	for top >= 0 {
