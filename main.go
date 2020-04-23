@@ -273,6 +273,23 @@ func (s *GameState) SnakeNo(c Coord) int {
 }
 
 // ----------------------------------------------------------------
+// Generic traversal of neighboring cells
+// ----------------------------------------------------------------
+func (s *GameState) VisitNeighbours (c Coord, visitor func(Coord,string)) {
+	left := c; left.X--
+	if left.X >= 0 { visitor(left,"left") }
+
+	right := c; right.X++
+	if right.X < s.w { visitor(right,"right") }
+
+	up := c; up.Y--
+	if up.Y >= 0 { visitor(up,"up") }
+
+	down := c; down.Y++
+	if down.Y < s.h { visitor(down,"down") }
+}
+
+// ----------------------------------------------------------------
 // Space Mapping
 //
 // This is a flood fill algorithm which is used to map out a
@@ -284,16 +301,6 @@ func (s *GameState) MapSpace (c Coord, space int) int {
 	stack := make([]Coord,s.h * s.w)
 	top := 0
 	stack[top] = c
-
-	IsOpen := func (c Coord) bool {
-		return s.IsEmpty(c) || s.IsFood(c) || s.IsTail(c)
-	}
-
-	TrackSnake := func (c Coord) {
-		if (s.IsBody(c) || s.IsHead(c)) { 
-			s.spaces[space].snakes[s.SnakeNo(c)] = true 
-		}
-	}
 
 	count := 0
 	for top >= 0 {
@@ -307,45 +314,15 @@ func (s *GameState) MapSpace (c Coord, space int) int {
 		s.grid[p.X][p.Y].space = uint16(space)
 		if pcell.IsFood() { s.spaces[space].nfood++ }
 
-		west := p; west.X--
-		if west.X >= 0 {
-			if IsOpen(west)  { 
+		s.VisitNeighbours (p, func (neighbour Coord, dir string) {
+			if s.IsEmpty(neighbour) || s.IsFood(neighbour) || s.IsTail(neighbour) {
 				top++
-				stack[top] = west
-			} else { 
-				TrackSnake(west) 
+				stack[top] = neighbour
+			} else if s.IsBody(neighbour) || s.IsHead(neighbour) {
+				s.spaces[space].snakes[s.SnakeNo(neighbour)] = true
 			}
-		} 
-	
-		north := p; north.Y--
-		if north.Y >= 0 {
-			if IsOpen(north) { 
-				top++
-				stack[top] = north 
-			} else { 
-				TrackSnake(north) 
-			}
-		}
-	
-		east := p; east.X++
-		if east.X < s.w {
-			if IsOpen(east) { 
-				top++
-				stack[top] = east
-			} else { 
-				TrackSnake(east) 
-			}
-		} 
-	
-		south := p; south.Y++
-		if south.Y < s.h {
-			if IsOpen(south) { 
-				top++
-				stack[top] = south 
-			} else { 
-				TrackSnake(south) 
-			}
-		}
+		})
+
 	}
 
 	return count
@@ -466,23 +443,6 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		}
 	}
 
-	LeftCell := func (c Coord) (Coord,bool) {
-		c.X--
-		return c, c.X >= 0
-	}
-	RightCell := func (c Coord) (Coord,bool) {
-		c.X++
-		return c, c.X < s.w
-	}
-	UpCell := func (c Coord) (Coord,bool) {
-		c.Y--
-		return c, c.Y >= 0
-	}
-	DownCell := func (c Coord) (Coord,bool) {
-		c.Y++
-		return c, c.Y < s.h
-	}
-
  	// Now, there are up to three possible directions we can move, since our own body
 	// will block at least one direction
 	s.debug.Printf("Enumerate possiible moves\n")
@@ -491,64 +451,19 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		c Coord
 	}
 
-	IsBlocked := func (c Coord) bool {
-		return s.IsBody(c) || s.IsHead(c) || (t == 1 && s.IsTail(c))
-	}
-
 	nmoves := 0
-
-	left, okLeft := LeftCell(head)
-	if okLeft {
-		if IsBlocked(left) { 
-			s.debug.Printf("Direction left blocked by snake head or body\n")
+	s.VisitNeighbours (head, func (neighbour Coord, dir string) {
+		if s.IsBody(neighbour) || s.IsHead(neighbour) || (t == 1 && s.IsTail(neighbour)) {
+			s.debug.Printf("Direction %s blocked by snake head or body\n", dir)
 		} else {
-			s.debug.Printf("Add left to possible moves, left=(%d,%d)[%d]\n",left.X,left.Y,s.grid[left.X][left.Y].content)
-			moves[nmoves].dir = "left"
-			moves[nmoves].c = left
+			s.debug.Printf("Add to possible moves: %s=(%d,%d)[%d]\n", dir,
+						   neighbour.X, neighbour.Y, 
+						   s.grid[neighbour.X][neighbour.Y].content)
+			moves[nmoves].dir = dir
+			moves[nmoves].c = neighbour
 			nmoves++
 		}
-	} else {
-		s.debug.Printf("Direction left blocked by grid boundary\n")
-	}
-	
-	right, okRight := RightCell(head)
-	if okRight {
-		if IsBlocked(right) {
-			s.debug.Printf("Direction right blocked by snake head or body\n")
-		} else {
-			moves[nmoves].dir = "right"
-			moves[nmoves].c = right
-			nmoves++
-		}
-	} else {
-		s.debug.Printf("Direction right blocked by grid boundary\n")
-	}
-
-	up, okUp := UpCell(head)
-	if okUp {
-		if IsBlocked(up) {
-			s.debug.Printf("Direction up blocked by snake head or body\n")
-		} else {
-			moves[nmoves].dir = "up"
-			moves[nmoves].c = up
-			nmoves++
-		}
-	} else {
-		s.debug.Printf("Direction up blocked by grid boundary\n")
-	}
-
-	down, okDown := DownCell(head) 
-	if okDown {
-		if IsBlocked(down) {
-			s.debug.Printf("Direction down blocked by snake head or body\n")
-		} else {
-			moves[nmoves].dir = "down"
-			moves[nmoves].c = down
-			nmoves++
-		}
-	} else {
-		s.debug.Printf("Direction down blocked by grid boundary\n")
-	}
+	})
 
 	s.debug.Printf("Check if 0 or 1 moves\n")
 
@@ -573,7 +488,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		s.spaces[nspaces].size = s.MapSpace(move.c,nspaces)
 
 		// Count the number of snakes bounding the space
-		s.debug.Printf("Count snakes bounding the space")
+		s.debug.Printf("Count snakes bounding the space\n")
 		nsnakes := 0
 		for _,snakeInSpace := range s.spaces[nspaces].snakes {
 			if (snakeInSpace) { nsnakes++ }
@@ -629,53 +544,6 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		s.debug.Printf("Select %s because it is the only viable move\n")
 		return Result(moves[0].dir)
 	}
-
-	AdjacentSnakeHeads := func (c Coord) (int,int) {
-		nlonger := 0
-		nshorter := 0
-
-		left, okLeft := LeftCell(c)
-		if okLeft && s.IsHead(left) && left != head { 
-			length := s.snakes[s.SnakeNo(left)].length
-			if length >= myLength { 
-				nlonger++ 
-			} else {
-				nshorter++
-			}
-		}
-		
-		right, okRight := RightCell(c)
-		if okRight && s.IsHead(right) && right != head {
-			length := s.snakes[s.SnakeNo(right)].length
-			if length >= myLength { 
-				nlonger++ 
-			} else {
-				nshorter++
-			}
-		}
-	
-		up, okUp := UpCell(c)
-		if okUp && s.IsHead(up) && up != head {
-			length := s.snakes[s.SnakeNo(up)].length
-			if length >= myLength { 
-				nlonger++ 
-			} else {
-				nshorter++
-			}
-		}
-	
-		down, okDown := DownCell(c) 
-		if okDown && s.IsHead(down) && down != head {
-			length := s.snakes[s.SnakeNo(down)].length
-			if length >= myLength { 
-				nlonger++ 
-			} else {
-				nshorter++
-			}
-		}
-
-		return nlonger, nshorter
-	}
 	
 	// If any moves have an adjacent head from a longer snake, then avoid those moves
 	// If these moves have an adjacent head from a shorter snake, move to take it out
@@ -685,7 +553,18 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	myHealth := y.Health
 	for mx := 0; mx < nmoves; {
 		move := moves[mx]
-		nlonger, nshorter := AdjacentSnakeHeads(move.c)
+		nlonger := 0
+		nshorter := 0
+
+		s.VisitNeighbours (move.c, func (neighbour Coord, dir string) {
+			if s.IsHead(neighbour) && neighbour != head {
+				if s.snakes[s.SnakeNo(neighbour)].length >= myLength {
+					nlonger++
+				} else {
+					nshorter++
+				}
+			}
+		})
 
 		if nlonger > 0 { 
 			s.debug.Printf("Exclude %s because it is adjacent to the head of a loner snake\b", move.dir)
