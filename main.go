@@ -282,7 +282,7 @@ func (s *GameState) SnakeNo(c Coord) int {
 // ----------------------------------------------------------------
 
 func (s *GameState) MapSpace (c Coord, space int) int {
-	s.debug.Printf("MapSpace: c=(%d,%d), space=%d\n", c.X, c.Y, space)
+	//s.debug.Printf("MapSpace: c=(%d,%d), space=%d\n", c.X, c.Y, space)
 	if s.grid[c.X][c.Y].space != 0 { return 0 }
 
 	count := 1
@@ -302,7 +302,7 @@ func (s *GameState) MapSpace (c Coord, space int) int {
 	west := c; west.X--
 	if west.X >= 0 {
 		if IsOpen(west)  { 
-			s.debug.Printf("Map west: (%d,%d)\n", west.X, west.Y)
+			//s.debug.Printf("Map west: (%d,%d)\n", west.X, west.Y)
 			count += s.MapSpace(west,space) 
 		} else { 
 			TrackSnake(west) 
@@ -312,7 +312,7 @@ func (s *GameState) MapSpace (c Coord, space int) int {
 	north := c; north.Y--
 	if north.Y >= 0 {
 		if IsOpen(north) { 
-			s.debug.Printf("Map north: (%d,%d)\n", north.X, north.Y)
+			//s.debug.Printf("Map north: (%d,%d)\n", north.X, north.Y)
 			count += s.MapSpace(north,space) 
 		} else { 
 			TrackSnake(north) 
@@ -322,7 +322,7 @@ func (s *GameState) MapSpace (c Coord, space int) int {
 	east := c; east.X++
 	if east.X < s.w {
 		if IsOpen(east) { 
-			s.debug.Printf("Map east: (%d,%d)\n", east.X, east.Y)
+			//s.debug.Printf("Map east: (%d,%d)\n", east.X, east.Y)
 			count += s.MapSpace(east,space) 
 		} else { 
 			TrackSnake(east) 
@@ -332,7 +332,7 @@ func (s *GameState) MapSpace (c Coord, space int) int {
 	south := c; south.Y++
 	if south.Y < s.h {
 		if IsOpen(south) { 
-			s.debug.Printf("Map south: (%d,%d)\n", south.X, south.Y)
+			//s.debug.Printf("Map south: (%d,%d)\n", south.X, south.Y)
 			count += s.MapSpace(south,space) 
 		} else { 
 			TrackSnake(south) 
@@ -564,6 +564,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		s.spaces[nspaces].size = s.MapSpace(move.c,nspaces)
 
 		// Count the number of snakes bounding the space
+		s.debug.Printf("Count snakes bounding the space")
 		nsnakes := 0
 		for _,snakeInSpace := range s.spaces[nspaces].snakes {
 			if (snakeInSpace) { nsnakes++ }
