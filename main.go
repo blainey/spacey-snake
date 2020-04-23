@@ -95,13 +95,23 @@ func Translate (a Coord, dx, dy int) Coord {
 }
 
 // ----------------------------------------------------------------
-// Logging
+// Game Context
 // ----------------------------------------------------------------
 
-var mySnakes struct {
-	sync.RWMutex
-	m map[string]string
+type ContextType struct {
+	color string
+	heads map[string]Coord
+	food []Coord
 }
+
+var gameContext struct {
+	sync.RWMutex
+	m map[string]*ContextType
+}
+
+// ----------------------------------------------------------------
+// Logging
+// ----------------------------------------------------------------
 	
 type Log struct {
 	color string
@@ -110,9 +120,9 @@ type Log struct {
 
 func NewLogger (ID string, level string) Log {
 	var l Log
-	mySnakes.RLock()
-	l.color = mySnakes.m[ID]
-	mySnakes.RUnlock()
+	gameContext.RLock()
+	l.color = gameContext.m[ID].color
+	gameContext.RUnlock()
 	l.level = level
 	return l
 }
@@ -438,6 +448,26 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		}
 	}
 
+	gameContext.RLock()
+	context := gameContext.m[y.ID]
+	gameContext.RUnlock()
+
+	// Compute which snakes are growing next turn 
+	// Either when t < 3 or a snake head is in the same position as food was last tiime
+	growing := make([]bool,len(s.snakes))
+	for sx,snake := range s.snakes {
+		if t < 2 {
+			growing[sx] = true
+		} else {
+			for _,food := range context.food {
+				if food == snake.head {
+					growing[sx] = true
+					break
+				}
+			}
+		}
+	}
+
  	// Now, there are up to three possible directions we can move, since our own body
 	// will block at least one direction
 	s.debug.Printf("Enumerate possiible moves\n")
@@ -448,8 +478,9 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
 	nmoves := 0
 	s.VisitNeighbours (head, func (neighbour Coord, dir string) {
-		if s.IsBody(neighbour) || s.IsHead(neighbour) || (t == 1 && s.IsTail(neighbour)) {
-			s.debug.Printf("Direction %s blocked by snake head or body\n", dir)
+		if s.IsBody(neighbour) || s.IsHead(neighbour) || 
+		   s.IsTail(neighbour) && growing[s.SnakeNo(neighbour)] {
+			s.debug.Printf("Direction %s blocked by snake\n", dir)
 		} else {
 			s.debug.Printf("Add to possible moves: %s=(%d,%d)[%d]\n", dir,
 						   neighbour.X, neighbour.Y, 
@@ -624,6 +655,19 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	return Result(moves[least].dir)
 }
 
+func UpdateContext (id string, s []Snake, f []Coord) {
+	gameContext.Lock()
+	gameContext.m[id].heads = make(map[string]Coord)
+	for _,snake := range s {
+		gameContext.m[id].heads[snake.ID] = snake.Body[0]
+	}
+	gameContext.m[id].food = make([]Coord,len(f))
+	for fx,food := range f {
+		gameContext.m[id].food[fx] = food
+	}
+	gameContext.Unlock()
+}
+
 // HandleMove is called for each turn of each game.
 // Valid responses are "up", "down", "left", or "right".
 func HandleMove(w http.ResponseWriter, r *http.Request) {
@@ -636,6 +680,8 @@ func HandleMove(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+
+	UpdateContext(request.You.ID, request.Board.Snakes, request.Board.Food)
 }
 
 // HandleStart is called at the start of each game your Battlesnake is playing.
@@ -666,9 +712,13 @@ func HandleStart(w http.ResponseWriter, r *http.Request) {
 		TailType: "skinny",
 	}
 
-	mySnakes.Lock()
-	mySnakes.m[request.You.ID] = colors[cx].name
-	mySnakes.Unlock()
+	gameContext.Lock()
+	id := request.You.ID
+	gameContext.m[id] = new(ContextType)
+	gameContext.m[id].color = colors[cx].name
+	gameContext.Unlock()
+
+	UpdateContext(request.You.ID, request.Board.Snakes, request.Board.Food)
 
 	fmt.Printf("INFO(%s): Start\n", colors[cx].name)
 	
@@ -682,8 +732,10 @@ func HandleEnd(w http.ResponseWriter, r *http.Request) {
 	request := EndRequest{}
 	json.NewDecoder(r.Body).Decode(&request)
 
-	// TODO: clean up any context 
-
+	gameContext.Lock()
+	delete(gameContext.m,request.You.ID)
+	gameContext.Unlock()
+	
 	// Nothing to respond with here
 	fmt.Print("END\n")
 }
@@ -694,7 +746,7 @@ func main() {
 		port = "8080"
 	}
 
-	mySnakes.m = make(map[string]string)
+	gameContext.m = make(map[string]*ContextType)
 
 	http.HandleFunc("/", func (w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "Spacey Snake is alive!")
