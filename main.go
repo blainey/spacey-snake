@@ -486,7 +486,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
 		nspaces++
 		s.spaces[nspaces].size = s.MapSpace(move.c,nspaces)
-		s.debug.Printf("Space %d, direction %s, size %d\n",nspaces,move.dir,
+		s.debug.Printf("Space %d, direction %s, size %d\n", nspaces, move.dir,
 		               s.spaces[nspaces].size)
 
 		// Count the number of snakes bounding the space
