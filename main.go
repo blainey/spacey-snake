@@ -533,6 +533,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
 		s.VisitNeighbours (move.c, func (neighbour Coord, dir string) {
 			if s.IsHead(neighbour) && neighbour != myHead {
+				s.debug.Printf("neighbouring head from snake %d, length %d (myLengh=%d)\n", s.SnakeNo(neighbour),s.snakes[s.SnakeNo(neighbour)].length,myLength)
 				if s.snakes[s.SnakeNo(neighbour)].length >= myLength {
 					moves[index].nlonger++
 				} else {
