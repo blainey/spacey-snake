@@ -548,11 +548,6 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 			nopen--
 			continue 
 		}
-
-		if moves[index].nshorter > 0 && myHealth > s.food[0].dist { 
-			s.debug.Printf("Select %s because we have the opportunity to take out a shorter snake\n", move.dir)
-			return Result(move.dir) 
-		}
 	}
 	
 	switch nopen {
@@ -678,6 +673,11 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	leastDist := s.h + s.w
 	for index,move := range moves {
 		if move.nlonger > 0 || move.smallSpace { continue }
+
+		if move.nshorter > 0 {
+			s.debug.Printf("Select %s because we have the opportunity to eat a shorter snake\n", move.dir)
+			return Result(move.dir)
+		}
 
 		if s.IsFood(move.c) { 
 			s.debug.Printf("Select %s because there is a food disc there\n", move.dir)
