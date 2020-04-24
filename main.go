@@ -358,17 +358,18 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 		s.grid[i] = make([]GameCell, s.h)
 	}
 
-	s.snakes = make ([]SnakeState, len(b.Snakes)+1)
+	s.snakes = make ([]SnakeState, 0, len(b.Snakes))
 
 	myHead := y.Body[0]
 
 	for sx,snake := range b.Snakes {
-		s.snakes[sx].ID = snake.ID
+		var this SnakeState
+		this.ID = snake.ID
 
 		smap := make(map[Coord]bool)
 		head := snake.Body[0]
 		smap[head] = true
-		s.snakes[sx].head = head
+		this.head = head
 		s.grid[head.X][head.Y] = HeadCell(sx)
 
 		sz := 1
@@ -379,13 +380,15 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 			sz++
 			s.grid[pos.X][pos.Y] = BodyCell(sx)
 		}
-		s.snakes[sx].length = sz
+		this.length = sz
 
 		tail := snake.Body[sz-1]
-		s.snakes[sx].tail = tail
+		this.tail = tail
 		s.grid[tail.X][tail.Y] = TailCell(sx)
 
-		s.snakes[sx].dist = ManDist(head,myHead)
+		this.dist = ManDist(head,myHead)
+
+		s.snakes = append(s.snakes,this)
 	}
 
 	// Sort snakes in order of distance of their head from our head
@@ -397,15 +400,19 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 		s.debug.Printf("Snake head:(%d,%d), dist=%d\n",snake.head.X,snake.head.Y,snake.dist)
 	}
 
-	s.food = make ([]FoodState, len(b.Food))
+	s.food = make ([]FoodState, 0, len(b.Food))
 
 	fmap := make(map[Coord]bool)
-	for fx,food := range b.Food {
+	for _,food := range b.Food {
 		if _,ok := fmap[food]; ok { continue }
 		fmap[food] = true
+
 		s.grid[food.X][food.Y] = FoodCell()
-		s.food[fx].pos = food
-		s.food[fx].dist = ManDist(food,myHead)
+
+		var this FoodState 
+		this.pos = food
+		this.dist = ManDist(food,myHead)
+		s.food = append(s.food,this)
 	}
 
 	// Sort food in order of distance from our head
@@ -671,10 +678,14 @@ func UpdateContext (id string, s []Snake, f []Coord) {
 	for _,snake := range s {
 		gameContext.m[id].heads[snake.ID] = snake.Body[0]
 	}
-	gameContext.m[id].food = make([]Coord,len(f))
-	for fx,food := range f {
-		gameContext.m[id].food[fx] = food
+	fvec := make([]Coord,0,len(f))
+	fmap := make(map[Coord]bool)
+	for _,food := range f {
+		if _,ok := fmap[food]; ok { continue }
+		fmap[food] = true
+		fvec = append(fvec,food)
 	}
+	gameContext.m[id].food = fvec
 	gameContext.Unlock()
 }
 
