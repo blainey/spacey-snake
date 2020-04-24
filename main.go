@@ -625,13 +625,13 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		space := s.grid[move.c.X][move.c.Y].space		
 		if s.spaces[space].self {
 			if s.spaces[space].size < myLength/2 - s.spaces[space].nfood {
-				s.debug.Printf("Avoid %s because it is a self-bounded region that is too small\n", move.dir)
+				s.debug.Printf("Avoid %s because it is a self-bounded space that is too small\n", move.dir)
 				move.tooSmall = true
 				nopen--
 				continue
 			}	
 		} else if s.spaces[space].size < myLength {
-			s.debug.Printf("Avoid %s because it is a region that is too small\n", move.dir)
+			s.debug.Printf("Avoid %s because it is a space that is too small\n", move.dir)
 			move.tooSmall = true
 			nopen--
 			continue
@@ -654,11 +654,9 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	case 1:
 		dir := "none"
 		for _,move := range moves {
-			if move.nlonger > 0 { continue }
-			if !move.tooSmall {
-				dir = move.dir 
-				break
-			}
+			if move.nlonger > 0 || move.tooSmall { continue }
+			dir = move.dir 
+			break
 		}
 		if dir == "none" { panic("Unable to find valid move") }
 		s.debug.Printf("Select %s because it is the only viable move\n", dir)
