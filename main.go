@@ -787,10 +787,18 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		}
 	}
 
+	// If we are in good health and we are not the smallest snake, then we try to avoid
+	// larger snakes and move closer to shorter ones
+	goodHealth := y.Health > 2* (s.food[len(s.food)-1].dist)
+	smallestSnake := true
+	for _,snake := range s.snakes {
+		if myLength > snake.length { smallestSnake = false }
+	}
+	if smallestSnake { goodHealth = false }
+
 	// Choose the best move 
 	best := -1
 	bestVal := 0
-	goodHealth := y.Health > 3* (s.food[len(s.food)-1].dist)
 	s.debug.Printf("Decide on bext move\n")
 	for index,move := range moves {
 		// Don't get trapped in small spaces, unless its our only move
