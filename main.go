@@ -806,7 +806,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// Choose the best move 
 	best := -1
 	bestVal := 0
-	s.debug.Printf("Decide on bext move\n")
+	s.debug.Printf("Decide on best move\n")
 	for index,move := range moves {
 		// Don't get trapped in small spaces, unless its our only move
 		if move.smallSpace { 
@@ -911,7 +911,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 			dist := s.h + s.w
 			for _,food := range s.food {
 				mdist := ManDist(move.c,food.pos)
-				if mdist < food.dist && (len(s.snakes) < 3 || food.closerSnakes == 0) {
+				if mdist < food.dist && food.closerSnakes == 0 {
 					dist = mdist		
 					break;
 				}
