@@ -696,7 +696,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 			}
 		})
 
-		if moves[index].nlonger == 0 || !move.smallSpace { allSmallSpacesOrLongerSnakes = false } 
+		if moves[index].nlonger == 0 && !move.smallSpace { allSmallSpacesOrLongerSnakes = false } 
 	}
 
 	// Check if moves will squeeze us against a wall
