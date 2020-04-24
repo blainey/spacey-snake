@@ -790,7 +790,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// Choose the best move 
 	best := -1
 	bestVal := 0
-	goodHealth := y.Health > s.food[len(s.food)-1].dist
+	goodHealth := y.Health > 3* (s.food[len(s.food)-1].dist)
 	s.debug.Printf("Decide on bext move\n")
 	for index,move := range moves {
 		// Don't get trapped in small spaces, unless its our only move
