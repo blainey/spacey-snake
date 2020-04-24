@@ -527,7 +527,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// unless we are in critical health
 
 	s.debug.Printf("Check for adjacent snake heads\n")
-	for _,move := range moves {
+	for index,move := range moves {
 		move.nlonger = 0
 		move.nshorter = 0
 
@@ -551,6 +551,8 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 			s.debug.Printf("Select %s because we have the opportunity to take out a shorter snake\n", move.dir)
 			return Result(move.dir) 
 		}
+
+		s.debug.Printf("move %d: nlonger=%d, nshorter=%d\n", index, move.nlonger, move.nshorter)
 	}
 	
 	switch nopen {
@@ -574,7 +576,9 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
 		case 1:
 			dir := "none"
-			for _,move := range moves {
+			s.debug.Printf("Just one move, search for it\n")
+			for index,move := range moves {
+				s.debug.Printf("move %d: nlonger=%d, nshorter=%d\n", index, move.nlonger, move.nshorter)
 				if move.nlonger == 0 { 
 					dir = move.dir 
 					break
