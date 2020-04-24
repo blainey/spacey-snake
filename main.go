@@ -489,10 +489,10 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	type MoveType struct {
 		dir 		string
 		c 			Coord
-		space 		int
-		tooSmall	bool
 		nlonger 	int
 		nshorter	int
+		space 		int
+		smallSpace	bool
 	}
 	moves := make([]MoveType,0,4)
 
@@ -628,18 +628,18 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		if s.spaces[space].self {
 			if s.spaces[space].size < myLength/2 - s.spaces[space].nfood {
 				s.debug.Printf("Avoid %s because it is a self-bounded space that is too small\n", move.dir)
-				move.tooSmall = true
+				move.smallSpace = true
 				nopen--
 				continue
 			}	
 		} else if s.spaces[space].size < myLength {
 			s.debug.Printf("Avoid %s because it is a space that is too small\n", move.dir)
-			move.tooSmall = true
+			move.smallSpace = true
 			nopen--
 			continue
 		}
 
-		move.tooSmall = false
+		move.smallSpace = false
 	}
 
 	switch nopen {
@@ -656,8 +656,8 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	case 1:
 		dir := "none"
 		for _,move := range moves {
-			s.debug.Printf("consider move: dir=%s, nlonger=%d, tooSmall=%d\n",move.dir,move.nlonger,move.tooSmall)
-			if move.nlonger == 0 && !move.tooSmall { 
+			s.debug.Printf("consider move: dir=%s, nlonger=%d, smallSpace=%d\n",move.dir,move.nlonger,move.smallSpace)
+			if move.nlonger == 0 && !move.smallSpace { 
 				dir = move.dir 
 				break
 			}
@@ -677,7 +677,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	least := -1
 	leastDist := s.h + s.w
 	for index,move := range moves {
-		if move.nlonger > 0 || move.tooSmall { continue }
+		if move.nlonger > 0 || move.smallSpace { continue }
 
 		if s.IsFood(move.c) { 
 			s.debug.Printf("Select %s because there is a food disc there\n", move.dir)
