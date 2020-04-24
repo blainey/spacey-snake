@@ -467,6 +467,9 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
 	myHead := s.snakes[0].head
 	myLength := s.snakes[0].length
+	myHealth := y.Health
+
+	s.debug.Printf("My head:(%d,%d), length:%d, health:%d\n",myHead.X,myHead.Y,myLength,myHealth)
 
 	if t == 0 {
 		// Special case, we can move in any direction, so just move toward the closest food
@@ -524,7 +527,6 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// unless we are in critical health
 
 	s.debug.Printf("Check for adjacent snake heads\n")
-	myHealth := y.Health
 	for _,move := range moves {
 		move.nlonger = 0
 		move.nshorter = 0
@@ -540,7 +542,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		})
 
 		if move.nlonger > 0 { 
-			s.debug.Printf("Avoid %s because it is adjacent to the head of a loner snake\b", move.dir)
+			s.debug.Printf("Avoid %s because it is adjacent to the head of a longer snake\n", move.dir)
 			nopen--
 			continue 
 		}
