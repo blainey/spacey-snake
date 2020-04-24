@@ -503,15 +503,19 @@ func FindMove (g Game, t int, b Board, y Snake) string {
  	// Now, there are up to three possible directions we can move, since our own body
 	// will block at least one direction
 	type MoveType struct {
-		dir 		string
-		c 			Coord
-		nlonger 	int			// how many larger snakes threaten?
-		alternate   int			// how many alternatives do larger snakes have?
-		nshorter	int			// how many shorter snakes are vulnerable?
-		space 		int			// what space is this move connected to?
-		smallSpace	bool		// is the space too small for us to safely enter?
-		discarded	bool		// has this move been discarded already?
-		squeezed	bool		// will this move squeeze us against a wall?
+		dir 			string
+		c 				Coord
+		nlonger 		int			// how many larger snakes threaten?
+		alternate   	int			// how many alternatives do larger snakes have?
+		nshorter		int			// how many shorter snakes are vulnerable?
+		space 			int			// what space is this move connected to?
+		smallSpace		bool		// is the space too small for us to safely enter?
+		discarded		bool		// has this move been discarded already?
+		squeezed		bool		// will this move squeeze us against a wall?
+		closerToLonger	int			// Number of longer snakes that will be closer if we
+									// pick this move
+		closerToShorter	int			// Number of shorter snakes that will be closer if we
+								    // pick this move
 	}
 	moves := make([]MoveType,0,4)
 
@@ -692,6 +696,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
 		if moves[index].nlonger == 0 || !move.smallSpace { allSmallSpacesOrLongerSnakes = false } 
 	}
+
 	// Check if moves will squeeze us against a wall
 	if myHead.X == 0 || myHead.X == s.w-1 || myHead.Y == 0 || myHead.Y == s.h-1 {
 		for index,move := range moves {
@@ -764,12 +769,28 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		}
 	}
 
-	// TODO: at this point, we can choose to chase food, prefer a larger space to move into,
-	// or aim to attack smaller snakes.
+	// Determine for each move how many longer and shorter snakes get closer
+	for index,move := range moves {
+		move.closerToLonger = 0
+		move.closerToShorter = 0
+
+		for _,snake := range s.snakes {
+			if snake.ID == y.ID { continue }
+
+			if ManDist(move.c,snake.head) < snake.dist {
+				if snake.length < myLength {
+					moves[index].closerToShorter++
+				} else {
+					moves[index].closerToLonger++
+				}
+			}
+		}
+	}
 
 	// Choose the best move 
-	least := -1
-	leastDist := s.h + s.w
+	best := -1
+	bestVal := 0
+	goodHealth := y.Health > s.food[len(s.food)-1].dist
 	s.debug.Printf("Decide on bext move\n")
 	for index,move := range moves {
 		// Don't get trapped in small spaces, unless its our only move
@@ -848,33 +869,49 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 			continue
 		}
 
-		dist := s.h + s.w
-		for _,food := range s.food {
-			mdist := ManDist(move.c,food.pos)
-			if mdist < food.dist && (len(s.snakes) < 3 || food.closerSnakes == 0) {
-				dist = mdist		
-				break;
+		// If we've got enough health, then prefer to move away from longer snakes and 
+		// toward closer snakes
+		if (goodHealth) {
+			if best < 0 ||
+			   move.closerToLonger < moves[best].closerToLonger ||
+			   (move.closerToLonger == moves[best].closerToLonger && 
+				move.closerToShorter > moves[best].closerToShorter) {
+					best = index
 			}
-		}
-
-		if dist == s.h + s.w {
+		} else {
+			dist := s.h + s.w
 			for _,food := range s.food {
 				mdist := ManDist(move.c,food.pos)
-				if mdist < food.dist {
+				if mdist < food.dist && (len(s.snakes) < 3 || food.closerSnakes == 0) {
 					dist = mdist		
 					break;
 				}
 			}	
-		}
 
-		if least < 0 || dist < leastDist { 
-			least = index
-			leastDist = dist
+			if dist == s.h + s.w {
+				for _,food := range s.food {
+					mdist := ManDist(move.c,food.pos)
+					if mdist < food.dist {
+						dist = mdist		
+						break;
+					}
+				}	
+			}
+
+			if best < 0 || dist < bestVal { 
+				best = index
+				bestVal = dist
+			}
 		}
 	}
 
-	s.debug.Printf("Select %s because it makes the best progress toward food\n", moves[least].dir)
-	return Result(moves[least].dir)
+	if (goodHealth) {
+		s.debug.Printf("Select %s because it moves us away from lomger snakes and/or closer to shorter snakes\n", moves[best].dir)
+	} else {
+		s.debug.Printf("Select %s because it makes the best progress toward food\n", moves[best].dir)
+	}
+
+	return Result(moves[best].dir)
 }
 
 func UpdateContext (id string, s []Snake, f []Coord) {
