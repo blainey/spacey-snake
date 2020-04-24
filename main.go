@@ -450,6 +450,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	s.debug = NewLogger(y.ID, "DEBUG")
 	s.info = NewLogger(y.ID, "INFO")
 
+	s.info.Printf("-------------------------------------------------------\n")
 	s.info.Printf("Move turn=%d\n", t)
 
 	Result := func(dir string) string {
@@ -526,13 +527,13 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// If these moves have an adjacent head from a shorter snake, move to take it out
 	// unless we are in critical health
 
-	s.debug.Printf("Check for adjacent snake heads\n")
 	for index,move := range moves {
 		moves[index].nlonger = 0
 		moves[index].nshorter = 0
 
+		s.debug.Printf("Check for adjacent snake heads, move=%s\n",move.dir)
 		s.VisitNeighbours (move.c, func (neighbour Coord, dir string) {
-			s.debug.Printf("Visit adjacent cell (%d,%d)\n",neighbour.X,neighbour.Y)
+			s.debug.Printf("Visit adjacent cell (%d,%d)=%d\n",neighbour.X,neighbour.Y,s.grid[neighbour.X][neighbour.Y].content)
 			if s.IsHead(neighbour) && neighbour != myHead {
 				s.debug.Printf("neighbouring head from snake %d, length %d (myLengh=%d)\n", s.SnakeNo(neighbour),s.snakes[s.SnakeNo(neighbour)].length,myLength)
 				if s.snakes[s.SnakeNo(neighbour)].length >= myLength {
