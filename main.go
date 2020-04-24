@@ -729,7 +729,7 @@ func HandleStart(w http.ResponseWriter, r *http.Request) {
 
 	response := StartResponse{
 		Color:    colors[cx].hexcode,
-		HeadType: "bendr",
+		HeadType: "evil",
 		TailType: "skinny",
 	}
 
