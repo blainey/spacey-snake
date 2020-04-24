@@ -483,6 +483,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	s.Initialize(g,t,b,y)
 
 	myHead := s.snakes[0].head
+	myTail := s.snakes[0].tail
 	myLength := s.snakes[0].length
 	//myHealth := y.Health
 
@@ -810,14 +811,28 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 			if allSmallSpaces {
 				// Choose the largest of them
 				largest := 0
+				allSelf := true
 				for mx,mv := range moves {
 					if s.spaces[mv.space].size > s.spaces[moves[largest].space].size {
 						largest = mx
 					}
+					if !s.spaces[mv.space].self { allSelf = false }
 				}
 
-				s.debug.Printf("All our choices are small spaces, so choose direction %s which is th elargest of them\n",moves[largest].dir)
-				return Result(moves[largest].dir)
+				// If all our small spaces are self-enclosed, pick the one closest to our tail
+				if allSelf {
+					smallest := 0
+					for mx,mv := range moves {
+						if ManDist(mv.c,myTail) < ManDist(moves[smallest].c,myTail) {
+							smallest = mx
+						}
+					}
+					s.debug.Printf("All our choices are self-enclosed small spaces to chosoe %s, the space closest to our tail\n", moves[smallest].dir)
+					return Result(moves[smallest].dir)
+				} else {
+					s.debug.Printf("All our choices are small spaces, so choose direction %s which is th elargest of them\n",moves[largest].dir)
+					return Result(moves[largest].dir)	
+				}
 			}
 
 			move.discarded = true
