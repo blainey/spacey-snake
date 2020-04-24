@@ -367,26 +367,24 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 		this.ID = snake.ID
 
 		smap := make(map[Coord]bool)
-		head := snake.Body[0]
-		smap[head] = true
-		this.head = head
-		s.grid[head.X][head.Y] = HeadCell(sx)
-
-		sz := 1
-		for i := 1; i < sz-1; i++ {
-			pos := snake.Body[i]
-			if _,ok := smap[pos]; ok { continue }
-			smap[pos] = true
+		sz := 0
+		s.debug.Printf("Map snake: ")
+		for _,segment := range snake.Body {
+			if _,ok := smap[segment]; ok { continue }
+			smap[segment] = true
+			s.debug.Printf(" (%d,%d)", segment.X, segment.Y)
 			sz++
-			s.grid[pos.X][pos.Y] = BodyCell(sx)
+			s.grid[segment.X][segment.Y] = BodyCell(sx)
 		}
+		s.debug.Printf("\n")
 		this.length = sz
 
-		tail := snake.Body[sz-1]
-		this.tail = tail
-		s.grid[tail.X][tail.Y] = TailCell(sx)
+		this.head = snake.Body[0]
+		s.grid[this.head.X][this.head.Y] = HeadCell(sx)
+		this.dist = ManDist(this.head,myHead)
 
-		this.dist = ManDist(head,myHead)
+		this.tail = snake.Body[len(snake.Body)-1]
+		s.grid[this.tail.X][this.tail.Y] = TailCell(sx)
 
 		s.snakes = append(s.snakes,this)
 	}
@@ -668,7 +666,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		if foodDist[mx] < foodDist[least] { least = mx }
 	}
 
-	s.debug.Printf("Select %s because it makes the best progress toward food")
+	s.debug.Printf("Select %s because it makes the best progress toward food\n", )
 	return Result(moves[least].dir)
 }
 
