@@ -233,8 +233,9 @@ type SpaceState struct {
 // ----------------------------------------------------------------
 
 type FoodState struct {
-	pos		Coord
-	dist	int
+	pos				Coord
+	dist			int
+	closerSnakes	int
 }
 
 // ----------------------------------------------------------------
@@ -362,29 +363,6 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 
 	myHead := y.Body[0]
 
-	s.food = make ([]FoodState, 0, len(b.Food))
-
-	fmap := make(map[Coord]bool)
-	for _,food := range b.Food {
-		if _,ok := fmap[food]; ok { continue }
-		fmap[food] = true
-
-		s.grid[food.X][food.Y] = FoodCell()
-
-		var this FoodState 
-		this.pos = food
-		this.dist = ManDist(food,myHead)
-		s.food = append(s.food,this)
-	}
-
-	// Sort food in order of distance from our head
-	sort.Slice(s.food, func(i, j int) bool {
-		return s.food[i].dist < s.food[j].dist
-	})
-	for _,food := range s.food {
-		s.debug.Printf("Food at: (%d,%d), dist=%d\n", food.pos.X,food.pos.Y,food.dist)
-	}
-
 	foodLastTurn := make(map[Coord]bool)
 	gameContext.RLock()
 	context := gameContext.m[y.ID]
@@ -439,6 +417,39 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 					   snake.head.X,snake.head.Y,snake.tail.X,snake.tail.Y,
 					   snake.length,snake.dist,growing)
 	}
+
+	s.food = make ([]FoodState, 0, len(b.Food))
+
+	fmap := make(map[Coord]bool)
+	for _,food := range b.Food {
+		if _,ok := fmap[food]; ok { continue }
+		fmap[food] = true
+
+		s.grid[food.X][food.Y] = FoodCell()
+
+		var this FoodState 
+		this.pos = food
+		this.dist = ManDist(food,myHead)
+
+		// How many snakes are close to this food than us?
+		this.closerSnakes = 0
+		for _,snake := range s.snakes {
+			if ManDist(snake.head,food) < this.dist {
+				this.closerSnakes++
+			}
+		}
+
+		s.food = append(s.food,this)
+	}
+
+	// Sort food in order of distance from our head
+	sort.Slice(s.food, func(i, j int) bool {
+		return s.food[i].dist < s.food[j].dist
+	})
+	for _,food := range s.food {
+		s.debug.Printf("Food at: (%d,%d), dist=%d\n", food.pos.X,food.pos.Y,food.dist)
+	}
+
 
 }
 
@@ -757,10 +768,20 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		dist := s.h + s.w
 		for _,food := range s.food {
 			mdist := ManDist(move.c,food.pos)
-			if mdist < food.dist {
-				dist = mdist
+			if mdist < food.dist && (len(s.snakes) < 3 || food.closerSnakes == 0) {
+				dist = mdist		
 				break;
 			}
+		}
+
+		if dist == s.h + s.w {
+			for _,food := range s.food {
+				mdist := ManDist(move.c,food.pos)
+				if mdist < food.dist {
+					dist = mdist		
+					break;
+				}
+			}	
 		}
 
 		if least < 0 || dist < leastDist { 
