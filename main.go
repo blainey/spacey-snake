@@ -365,16 +365,21 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 	for sx,snake := range b.Snakes {
 		s.snakes[sx].ID = snake.ID
 
+		smap := make(map[Coord]bool)
 		head := snake.Body[0]
+		smap[head] = true
 		s.snakes[sx].head = head
 		s.grid[head.X][head.Y] = HeadCell(sx)
 
-		sz := len(snake.Body)
-		s.snakes[sx].length = sz
+		sz := 1
 		for i := 1; i < sz-1; i++ {
 			pos := snake.Body[i]
+			if _,ok := smap[pos]; ok { continue }
+			smap[pos] = true
+			sz++
 			s.grid[pos.X][pos.Y] = BodyCell(sx)
 		}
+		s.snakes[sx].length = sz
 
 		tail := snake.Body[sz-1]
 		s.snakes[sx].tail = tail
@@ -394,7 +399,10 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 
 	s.food = make ([]FoodState, len(b.Food))
 
+	fmap := make(map[Coord]bool)
 	for fx,food := range b.Food {
+		if _,ok := fmap[food]; ok { continue }
+		fmap[food] = true
 		s.grid[food.X][food.Y] = FoodCell()
 		s.food[fx].pos = food
 		s.food[fx].dist = ManDist(food,myHead)
@@ -628,13 +636,13 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// our present health
 
 	// Choose the move that makes best progress toward food
-	s.debug.Printf("Choose the move that makes best progress toward food")
+	s.debug.Printf("Choose the move that makes best progress toward food\n")
 	var foodDist [3]int
 	for mx := 0; mx < nmoves; mx++ {
 		move := moves[mx]
 
 		if s.IsFood(move.c) { 
-			s.debug.Printf("Select %s because there is a food disc there")
+			s.debug.Printf("Select %s because there is a food disc there\n", move.dir)
 			return Result(move.dir) 
 		}
 
