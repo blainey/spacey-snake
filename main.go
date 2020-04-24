@@ -656,9 +656,11 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	case 1:
 		dir := "none"
 		for _,move := range moves {
-			if move.nlonger > 0 || move.tooSmall { continue }
-			dir = move.dir 
-			break
+			s.debug.Printf("consider move: dir=%s, nlonger=%d, tooSmall=%d\n",move.dir,move.nlonger,move.tooSmall)
+			if move.nlonger == 0 && !move.tooSmall { 
+				dir = move.dir 
+				break
+			}
 		}
 		if dir == "none" { panic("Unable to find valid move") }
 		s.debug.Printf("Select %s because it is the only viable move\n", dir)
