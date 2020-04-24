@@ -505,11 +505,13 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	type MoveType struct {
 		dir 		string
 		c 			Coord
-		nlonger 	int
-		alternate   int
-		nshorter	int
-		space 		int
-		smallSpace	bool
+		nlonger 	int			// how many larger snakes threaten?
+		alternate   int			// how many alternatives do larger snakes have?
+		nshorter	int			// how many shorter snakes are vulnerable?
+		space 		int			// what space is this move connected to?
+		smallSpace	bool		// is the space too small for us to safely enter?
+		discarded	bool		// has this move been discarded already?
+		squeezed	bool		// will this move squeeze us against a wall?
 	}
 	moves := make([]MoveType,0,4)
 
@@ -541,37 +543,6 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	}
 	*/
 
-	// If any moves have an adjacent head from a longer snake, then avoid those moves
-	// If these moves have an adjacent head from a shorter snake, move to take it out
-	// unless we are in critical health
-
-	allLongerSnakes := true
-	for index,move := range moves {
-		moves[index].nlonger = 0
-		moves[index].nshorter = 0
-
-		s.VisitNeighbours (move.c, func (neighbour Coord, dir string) {
-			if s.IsHead(neighbour) && neighbour != myHead {
-				if s.snakes[s.SnakeNo(neighbour)].length >= myLength {
-					moves[index].nlonger++
-					// count other moves available to this snake
-					s.VisitNeighbours (neighbour, func (nextNeighbour Coord, dir string) {
-						if nextNeighbour != move.c && 
-						   (!s.IsBody(nextNeighbour) && !s.IsHead(nextNeighbour)) {
-							moves[index].alternate++
-							if s.IsFood(nextNeighbour) { 
-								moves[index].alternate += 4
-							}
-						}
-					})
-				} else {
-					moves[index].nshorter++
-				}
-			}
-		})
-
-		if moves[index].nlonger == 0 { allLongerSnakes = false } 
-	}
 	
 	/*
 	switch nopen {
@@ -690,6 +661,109 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	}
 	*/
 
+	// If any moves have an adjacent head from a longer snake, then avoid those moves
+	// If these moves have an adjacent head from a shorter snake, move to take it out
+	// unless we are in critical health
+
+	allSmallSpacesOrLongerSnakes := true
+	for index,move := range moves {
+		moves[index].nlonger = 0
+		moves[index].nshorter = 0
+
+		s.VisitNeighbours (move.c, func (neighbour Coord, dir string) {
+			if s.IsHead(neighbour) && neighbour != myHead {
+				if s.snakes[s.SnakeNo(neighbour)].length >= myLength {
+					moves[index].nlonger++
+					// count other moves available to this snake
+					s.VisitNeighbours (neighbour, func (nextNeighbour Coord, dir string) {
+						if nextNeighbour != move.c && 
+						   (!s.IsBody(nextNeighbour) && !s.IsHead(nextNeighbour)) {
+							moves[index].alternate++
+							if s.IsFood(nextNeighbour) { 
+								moves[index].alternate += 4
+							}
+						}
+					})
+				} else {
+					moves[index].nshorter++
+				}
+			}
+		})
+
+		if moves[index].nlonger == 0 || !move.smallSpace { allSmallSpacesOrLongerSnakes = false } 
+	}
+	// Check if moves will squeeze us against a wall
+	if myHead.X == 0 || myHead.X == s.w-1 || myHead.Y == 0 || myHead.Y == s.h-1 {
+		for index,move := range moves {
+			if move.smallSpace || move.nlonger > 0 {
+				// don't bother checking
+				continue
+			}
+		
+			if move.c.X == 0 {
+				// moving along left wall
+				adj := move.c
+				adj.X++
+				snake := s.SnakeNo(adj)
+				if snake > 0 {
+					increment := move.c.Y - myHead.Y
+					length := 0
+					for y := move.c.Y; y >= 0 && y < s.h; y += increment {
+						if s.grid[1][y].SnakeNo() == snake { length++ }
+					}
+					if length > 1 {
+						moves[index].squeezed = true
+					}
+				}
+			} else if move.c.Y == 0 {
+				// moving along top wall
+				adj := move.c
+				adj.Y++
+				snake := s.SnakeNo(adj)
+				if snake > 0 {
+					increment := move.c.X - myHead.X
+					length := 0
+					for x := move.c.X; x >= 0 && x < s.w; x += increment {
+						if s.grid[x][1].SnakeNo() == snake { length++ }
+					}
+					if length > 1 {
+						moves[index].squeezed = true
+					}
+				}
+			} else if move.c.X == s.w-1 {
+				// moving along right wall
+				adj := move.c
+				adj.X--
+				snake := s.SnakeNo(adj)
+				if snake > 0 {
+					increment := move.c.Y - myHead.Y
+					length := 0
+					for y := move.c.Y; y >= 0 && y < s.h; y += increment {
+						if s.grid[s.w-2][y].SnakeNo() == snake { length++ }
+					}
+					if length > 1 {
+						moves[index].squeezed = true
+					}
+				}
+			} else if move.c.Y == s.h-1 {
+				// moving along bottom wall
+				adj := move.c
+				adj.Y--
+				snake := s.SnakeNo(adj)
+				if snake > 0 {
+					increment := move.c.X - myHead.X
+					length := 0
+					for x := move.c.X; x >= 0 && x < s.w; x += increment {
+						if s.grid[x][s.h-2].SnakeNo() == snake { length++ }
+					}
+					if length > 1 {
+						moves[index].squeezed = true
+					}
+				}
+			}
+		}
+	}
+
 	// TODO: at this point, we can choose to chase food, prefer a larger space to move into,
 	// or aim to attack smaller snakes.
 
@@ -701,12 +775,6 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		// Don't get trapped in small spaces, unless its our only move
 		if move.smallSpace { 
 			s.debug.Printf("Direction %s is a small space\n", move.dir)
-
-			// Is it our only move?
-			if len(moves) == 1 { 
-				s.debug.Printf("Go in this direction anyway since its our ownly choice\n")
-				return Result(move.dir) 
-			}
 
 			// Are all of our moves into small spaces?
 			if allSmallSpaces {
@@ -722,6 +790,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 				return Result(moves[largest].dir)
 			}
 
+			move.discarded = true
 			continue
 		}
 
@@ -729,20 +798,17 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		if move.nlonger > 0 { 
 			s.debug.Printf("Direction %s is threatened by a longer snake\n", move.dir)
 
-			// Is it our only move?
-			if len(moves) == 1 { 
-				s.debug.Printf("Go in this direction anyway since its our ownly choice\n")
-				return Result(move.dir) 
-			}
-
-			// Are all of our moves against longer snakes?
-			if allLongerSnakes {
+			// Are all moves either small spaces or longer snakes?
+			if allSmallSpacesOrLongerSnakes {
 				// Choose the one most likely to avoid a collision,
 				// i.e. nlonger is smallest and among equal number of longer snakes
 				// there are greater alternatives
-				best := 0
+				best := -1
 				for mx,mv := range moves {
-					if mv.nlonger < moves[best].nlonger ||
+					if mv.smallSpace { continue }
+
+					if best < 0 ||
+					   mv.nlonger < moves[best].nlonger ||
 					   (mv.nlonger == moves[best].nlonger && mv.alternate > moves[best].alternate) {
 						best = mx
 					}
@@ -752,6 +818,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 				return Result(moves[best].dir)
 			}
 
+			move.discarded = true
 			continue 
 		}
 
@@ -763,6 +830,22 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		if move.nshorter > 0 {
 			s.debug.Printf("Select %s because we have the opportunity to eat a shorter snake\n", move.dir)
 			return Result(move.dir)
+		}
+
+		// Don't head into a squeeze unless its the only move
+		if move.squeezed {
+			// Is it our only move?
+			nmoves := 0
+			for _,mv := range moves {
+				if mv.nlonger > 0 || mv.smallSpace { continue }
+				nmoves++
+			}
+			if nmoves == 1 {
+				s.debug.Printf("Heading into a squeeze in direction %s but only choice\n",move.dir)
+				return Result(move.dir)
+			}
+			move.discarded = true
+			continue
 		}
 
 		dist := s.h + s.w
