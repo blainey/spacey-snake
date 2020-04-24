@@ -204,6 +204,7 @@ type SnakeState struct {
 	tail 	Coord
 	length 	int
 	dist	int
+	growing bool
 }
 
 // ----------------------------------------------------------------
@@ -358,47 +359,7 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 		s.grid[i] = make([]GameCell, s.h)
 	}
 
-	s.snakes = make ([]SnakeState, 0, len(b.Snakes))
-
 	myHead := y.Body[0]
-
-	for sx,snake := range b.Snakes {
-		var this SnakeState
-		this.ID = snake.ID
-
-		smap := make(map[Coord]bool)
-		sz := 0
-		//s.debug.Printf("Map snake: ")
-		for _,segment := range snake.Body {
-			if _,ok := smap[segment]; ok { continue }
-			smap[segment] = true
-			//s.debug.Printf(" (%d,%d)", segment.X, segment.Y)
-			sz++
-			s.grid[segment.X][segment.Y] = BodyCell(sx)
-		}
-		//s.debug.Printf("\n")
-		this.length = sz
-
-		this.head = snake.Body[0]
-		s.grid[this.head.X][this.head.Y] = HeadCell(sx)
-		this.dist = ManDist(this.head,myHead)
-
-		this.tail = snake.Body[len(snake.Body)-1]
-		s.grid[this.tail.X][this.tail.Y] = TailCell(sx)
-
-		s.snakes = append(s.snakes,this)
-	}
-
-	// Sort snakes in order of distance of their head from our head
-	// This will put our snake at index 0
-	sort.Slice(s.snakes, func(i, j int) bool {
-		return s.snakes[i].dist < s.snakes[j].dist
-	})
-	for _,snake := range s.snakes {
-		s.debug.Printf("Snake at: [H](%d,%d), [T](%d,%d), len=%d, dist=%d\n",
-					   snake.head.X,snake.head.Y,snake.tail.X,snake.tail.Y,
-					   snake.length,snake.dist)
-	}
 
 	s.food = make ([]FoodState, 0, len(b.Food))
 
@@ -422,6 +383,58 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 	for _,food := range s.food {
 		s.debug.Printf("Food at: (%d,%d), dist=%d\n", food.pos.X,food.pos.Y,food.dist)
 	}
+
+	foodLastTurn := make(map[Coord]bool)
+	gameContext.RLock()
+	context := gameContext.m[y.ID]
+	gameContext.RUnlock()
+	for _,food := range context.food {
+		foodLastTurn[food] = true
+	}
+
+	s.snakes = make ([]SnakeState, 0, len(b.Snakes))
+
+	for sx,snake := range b.Snakes {
+		var this SnakeState
+		this.ID = snake.ID
+
+		smap := make(map[Coord]bool)
+		sz := 0
+		//s.debug.Printf("Map snake: ")
+		for _,segment := range snake.Body {
+			if _,ok := smap[segment]; ok { continue }
+			smap[segment] = true
+			//s.debug.Printf(" (%d,%d)", segment.X, segment.Y)
+			sz++
+			s.grid[segment.X][segment.Y] = BodyCell(sx)
+		}
+		//s.debug.Printf("\n")
+		this.length = sz
+
+		this.head = snake.Body[0]
+		s.grid[this.head.X][this.head.Y] = HeadCell(sx)
+		this.dist = ManDist(this.head,myHead)
+		if t < 2 || foodLastTurn[this.head] {
+			this.growing = true
+		}
+
+		this.tail = snake.Body[len(snake.Body)-1]
+		s.grid[this.tail.X][this.tail.Y] = TailCell(sx)
+
+		s.snakes = append(s.snakes,this)
+	}
+
+	// Sort snakes in order of distance of their head from our head
+	// This will put our snake at index 0
+	sort.Slice(s.snakes, func(i, j int) bool {
+		return s.snakes[i].dist < s.snakes[j].dist
+	})
+	for _,snake := range s.snakes {
+		s.debug.Printf("Snake at: [H](%d,%d), [T](%d,%d), len=%d, dist=%d\n",
+					   snake.head.X,snake.head.Y,snake.tail.X,snake.tail.Y,
+					   snake.length,snake.dist)
+	}
+
 }
 
 // ----------------------------------------------------------------
@@ -466,28 +479,6 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		}
 	}
 
-	gameContext.RLock()
-	context := gameContext.m[y.ID]
-	gameContext.RUnlock()
-
-	// Compute which snakes are growing next turn 
-	// Either when t < 3 or a snake head is in the same position as food was last tiime
-	growing := make([]bool,len(s.snakes))
-	for sx,snake := range s.snakes {
-		if t < 2 {
-			growing[sx] = true
-		} else {
-			// Search for food locations from last turn
-			for _,food := range context.food {
-				s.debug.Printf("Food at (%d,%d)\n",food.X,food.Y)
-				if food == snake.head {
-					growing[sx] = true
-					break
-				}
-			}
-		}
-	}
-
  	// Now, there are up to three possible directions we can move, since our own body
 	// will block at least one direction
 	s.debug.Printf("Enumerate possiible moves\n")
@@ -499,7 +490,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	nmoves := 0
 	s.VisitNeighbours (head, func (neighbour Coord, dir string) {
 		if s.IsBody(neighbour) || s.IsHead(neighbour) || 
-		   s.IsTail(neighbour) && growing[s.SnakeNo(neighbour)] {
+		   s.IsTail(neighbour) && s.snakes[s.SnakeNo(neighbour)].growing {
 			s.debug.Printf("Direction %s blocked by snake\n", dir)
 		} else {
 			s.debug.Printf("Add to possible moves: %s=(%d,%d)[%d]\n", dir,
