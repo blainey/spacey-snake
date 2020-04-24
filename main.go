@@ -473,9 +473,9 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
 	myHead := s.snakes[0].head
 	myLength := s.snakes[0].length
-	myHealth := y.Health
+	//myHealth := y.Health
 
-	s.debug.Printf("My head:(%d,%d), length:%d, health:%d\n",myHead.X,myHead.Y,myLength,myHealth)
+	//s.debug.Printf("My head:(%d,%d), length:%d, health:%d\n",myHead.X,myHead.Y,myLength,myHealth)
 
 	if t == 0 {
 		// Special case, we can move in any direction, so just move toward the closest food
@@ -505,7 +505,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	s.VisitNeighbours (myHead, func (neighbour Coord, dir string) {
 		if s.IsBody(neighbour) || s.IsHead(neighbour) || 
 		   (s.IsTail(neighbour) && s.snakes[s.SnakeNo(neighbour)].growing) {
-			s.debug.Printf("Direction %s blocked by snake\n", dir)
+			//s.debug.Printf("Direction %s blocked by snake\n", dir)
 		} else {
 			s.debug.Printf("Add to possible moves: %s=(%d,%d)[%d]\n", dir,
 						   neighbour.X, neighbour.Y, 
@@ -559,12 +559,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 			}
 		})
 
-		if moves[index].nlonger > 0 { 
-			s.debug.Printf("Avoid %s because it is adjacent to the head of a longer snake\n", move.dir)
-			continue 
-		} else {
-			allLongerSnakes = false
-		}
+		if moves[index].nlonger == 0 { allLongerSnakes = false } 
 	}
 	
 	/*
@@ -613,8 +608,8 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		}
 
 		s.spaces[nspaces].size = s.MapSpace(move.c,nspaces)
-		s.debug.Printf("Space %d, direction %s, size %d\n", nspaces, move.dir,
-		               s.spaces[nspaces].size)
+		//s.debug.Printf("Space %d, direction %s, size %d\n", nspaces, move.dir,
+		//               s.spaces[nspaces].size)
 
 		// Count the number of snakes bounding the space
 		//s.debug.Printf("Count snakes bounding the space\n")
@@ -649,7 +644,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 				continue
 			}	
 		} else */ if s.spaces[space].size < myLength {
-			s.debug.Printf("Avoid %s because it is a space that is too small\n", move.dir)
+			//s.debug.Printf("Avoid %s because it is a space that is too small\n", move.dir)
 			moves[index].smallSpace = true
 			continue
 		}
@@ -690,11 +685,17 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// Choose the best move 
 	least := -1
 	leastDist := s.h + s.w
+	s.debug.Printf("Decide on bext move\n")
 	for index,move := range moves {
 		// Don't get trapped in small spaces, unless its our only move
 		if move.smallSpace { 
+			s.debug.Printf("Direction %s is a small space\n", move.dir)
+
 			// Is it our only move?
-			if len(moves) == 1 { return Result(move.dir) }
+			if len(moves) == 1 { 
+				s.debug.Printf("Go in this direction anyway since its our ownly choice\n")
+				return Result(move.dir) 
+			}
 
 			// Are all of our moves into small spaces?
 			if allSmallSpaces {
@@ -705,6 +706,8 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 						largest = mx
 					}
 				}
+
+				s.debug.Printf("All our choices are small spaces, so choose direction %s which is th elargest of them\n",moves[largest].dir)
 				return Result(moves[largest].dir)
 			}
 
@@ -713,8 +716,13 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
 		// Avoid going head to head with a longer snake
 		if move.nlonger > 0 { 
+			s.debug.Printf("Direction %s is threatened by a longer snake\n", move.dir)
+
 			// Is it our only move?
-			if len(moves) == 1 { return Result(move.dir) }
+			if len(moves) == 1 { 
+				s.debug.Printf("Go in this direction anyway since its our ownly choice\n")
+				return Result(move.dir) 
+			}
 
 			// Are all of our moves against longer snakes?
 			if allLongerSnakes {
@@ -728,6 +736,8 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 						best = mx
 					}
 				}
+
+				s.debug.Printf("All our choices are threatened by longer snakes, so choose direction %s which where the longer snakes have more alternatives\n",moves[best].dir)
 				return Result(moves[best].dir)
 			}
 
