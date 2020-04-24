@@ -330,7 +330,8 @@ func (s *GameState) MapSpace (c Coord, space int) int {
 		if pcell.IsFood() { s.spaces[space].nfood++ }
 
 		s.VisitNeighbours (p, func (neighbour Coord, dir string) {
-			if s.IsEmpty(neighbour) || s.IsFood(neighbour) || s.IsTail(neighbour) {
+			if s.IsEmpty(neighbour) || s.IsFood(neighbour) || 
+			   (s.IsTail(neighbour) && !s.snakes[s.SnakeNo(neighbour)].growing) {
 				top++
 				stack[top] = neighbour
 			} else if s.IsBody(neighbour) || s.IsHead(neighbour) {
