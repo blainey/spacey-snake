@@ -414,9 +414,7 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 		this.head = snake.Body[0]
 		s.grid[this.head.X][this.head.Y] = HeadCell(sx)
 		this.dist = ManDist(this.head,myHead)
-		if t < 2 || foodLastTurn[this.head] {
-			this.growing = true
-		}
+		this.growing = (t < 2 || foodLastTurn[this.head])
 
 		this.tail = snake.Body[len(snake.Body)-1]
 		s.grid[this.tail.X][this.tail.Y] = TailCell(sx)
@@ -621,7 +619,8 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	for index,move := range moves {
 		if (move.nlonger > 0) { continue }
 
-		space := s.grid[move.c.X][move.c.Y].space		
+		space := s.grid[move.c.X][move.c.Y].space	
+		/*	
 		if s.spaces[space].self {
 			if s.spaces[space].size < myLength/2 - s.spaces[space].nfood {
 				s.debug.Printf("Avoid %s because it is a self-bounded space that is too small\n", move.dir)
@@ -629,7 +628,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 				nopen--
 				continue
 			}	
-		} else if s.spaces[space].size < myLength {
+		} else */ if s.spaces[space].size < myLength {
 			s.debug.Printf("Avoid %s because it is a space that is too small\n", move.dir)
 			moves[index].smallSpace = true
 			nopen--
