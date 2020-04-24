@@ -199,12 +199,13 @@ func TailCell(s int) GameCell {
 // ----------------------------------------------------------------
 
 type SnakeState struct {
-	ID		string
-	head 	Coord
-	tail 	Coord
-	length 	int
-	dist	int
-	growing bool
+	ID		 string
+	head 	 Coord
+	tail 	 Coord
+	length 	 int
+	segments []Coord
+	dist	 int
+	growing  bool
 }
 
 // ----------------------------------------------------------------
@@ -394,30 +395,24 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 
 	s.snakes = make ([]SnakeState, 0, len(b.Snakes))
 
-	for sx,snake := range b.Snakes {
+	for _,snake := range b.Snakes {
 		var this SnakeState
 		this.ID = snake.ID
 
+		this.segments = make([]Coord,0,len(snake.Body))
 		smap := make(map[Coord]bool)
-		sz := 0
-		//s.debug.Printf("Map snake: ")
 		for _,segment := range snake.Body {
 			if _,ok := smap[segment]; ok { continue }
 			smap[segment] = true
-			//s.debug.Printf(" (%d,%d)", segment.X, segment.Y)
-			sz++
-			s.grid[segment.X][segment.Y] = BodyCell(sx)
+			this.segments = append(this.segments,segment)
 		}
-		//s.debug.Printf("\n")
-		this.length = sz
+		this.length = len(this.segments)
 
-		this.head = snake.Body[0]
-		s.grid[this.head.X][this.head.Y] = HeadCell(sx)
+		this.head = this.segments[0]
 		this.dist = ManDist(this.head,myHead)
 		this.growing = (t < 2 || foodLastTurn[this.head])
 
-		this.tail = snake.Body[len(snake.Body)-1]
-		s.grid[this.tail.X][this.tail.Y] = TailCell(sx)
+		this.tail = this.segments[this.length-1]
 
 		s.snakes = append(s.snakes,this)
 	}
@@ -427,6 +422,16 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 	sort.Slice(s.snakes, func(i, j int) bool {
 		return s.snakes[i].dist < s.snakes[j].dist
 	})
+
+	// Enter snake ID into all segment cells
+	for sx,snake := range s.snakes {
+		for _,segment := range snake.segments {
+			s.grid[segment.X][segment.Y] = BodyCell(sx)
+		}
+		s.grid[snake.head.X][snake.head.Y] = HeadCell(sx)
+		s.grid[snake.tail.X][snake.tail.Y] = TailCell(sx)
+	}
+
 	for _,snake := range s.snakes {
 		growing := ""
 		if snake.growing { growing = " growing" }
