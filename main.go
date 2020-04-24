@@ -430,9 +430,11 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 		return s.snakes[i].dist < s.snakes[j].dist
 	})
 	for _,snake := range s.snakes {
-		s.debug.Printf("Snake at: [H](%d,%d), [T](%d,%d), len=%d, dist=%d\n",
+		s.debug.Printf("Snake at: [H](%d,%d), [T](%d,%d), len=%d, dist=%d",
 					   snake.head.X,snake.head.Y,snake.tail.X,snake.tail.Y,
 					   snake.length,snake.dist)
+		if snake.growing { s.debug.Printf(", growing") }
+		s.debug.Printf("\n")
 	}
 
 }
@@ -498,7 +500,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
 	s.VisitNeighbours (myHead, func (neighbour Coord, dir string) {
 		if s.IsBody(neighbour) || s.IsHead(neighbour) || 
-		   s.IsTail(neighbour) && s.snakes[s.SnakeNo(neighbour)].growing {
+		   (s.IsTail(neighbour) && s.snakes[s.SnakeNo(neighbour)].growing) {
 			s.debug.Printf("Direction %s blocked by snake\n", dir)
 		} else {
 			s.debug.Printf("Add to possible moves: %s=(%d,%d)[%d]\n", dir,
