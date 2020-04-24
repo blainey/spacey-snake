@@ -795,6 +795,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		if myLength > snake.length { smallestSnake = false }
 	}
 	if smallestSnake { goodHealth = false }
+	if t < 50 { goodHealth = false }
 
 	// Choose the best move 
 	best := -1
