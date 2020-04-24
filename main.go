@@ -874,7 +874,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 			return Result(move.dir) 
 		}
 
-		if move.nshorter > 0 {
+		if move.nshorter > 0 && t > 50 {
 			s.debug.Printf("Select %s because we have the opportunity to eat a shorter snake\n", move.dir)
 			return Result(move.dir)
 		}
