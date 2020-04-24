@@ -368,15 +368,15 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 
 		smap := make(map[Coord]bool)
 		sz := 0
-		s.debug.Printf("Map snake: ")
+		//s.debug.Printf("Map snake: ")
 		for _,segment := range snake.Body {
 			if _,ok := smap[segment]; ok { continue }
 			smap[segment] = true
-			s.debug.Printf(" (%d,%d)", segment.X, segment.Y)
+			//s.debug.Printf(" (%d,%d)", segment.X, segment.Y)
 			sz++
 			s.grid[segment.X][segment.Y] = BodyCell(sx)
 		}
-		s.debug.Printf("\n")
+		//s.debug.Printf("\n")
 		this.length = sz
 
 		this.head = snake.Body[0]
@@ -395,7 +395,9 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 		return s.snakes[i].dist < s.snakes[j].dist
 	})
 	for _,snake := range s.snakes {
-		s.debug.Printf("Snake head:(%d,%d), dist=%d\n",snake.head.X,snake.head.Y,snake.dist)
+		s.debug.Printf("Snake at: [H](%d,%d), [T](%d,%d), len=%d, dist=%d\n",
+					   snake.head.X,snake.head.Y,snake.tail.X,snake.tail.Y,
+					   snake.length,snake.dist)
 	}
 
 	s.food = make ([]FoodState, 0, len(b.Food))
@@ -417,6 +419,9 @@ func (s *GameState) Initialize (g Game, t int, b Board, y Snake) {
 	sort.Slice(s.food, func(i, j int) bool {
 		return s.food[i].dist < s.food[j].dist
 	})
+	for _,food := range s.food {
+		s.debug.Printf("Food at: (%d,%d), dist=%d\n", food.pos.X,food.pos.Y,food.dist)
+	}
 }
 
 // ----------------------------------------------------------------
