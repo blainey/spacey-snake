@@ -4,6 +4,7 @@ module github.com/blainey/spacey-snake
 go 1.14
 
 require (
+	github.com/go-delve/delve v1.4.0 // indirect
 	github.com/ramya-rao-a/go-outline v0.0.0-20200117021646-2a048b4510eb // indirect
 	github.com/rogpeppe/godef v1.1.2 // indirect
 	github.com/stamblerre/gocode v1.0.0 // indirect

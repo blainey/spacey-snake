@@ -465,16 +465,17 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
 	s.Initialize(g,t,b,y)
 
-	head := s.snakes[0].head
+	myHead := s.snakes[0].head
+	myLength := s.snakes[0].length
 
 	if t == 0 {
 		// Special case, we can move in any direction, so just move toward the closest food
 		cf := s.food[0].pos
-		s.debug.Printf("Turn=0 special case, head=(%d,%d), cf=(%d,%d)\n",head.X,head.Y,cf.X,cf.Y)
+		s.debug.Printf("Turn=0 special case, head=(%d,%d), cf=(%d,%d)\n",myHead.X,myHead.Y,cf.X,cf.Y)
 		switch {
-			case cf.X < head.X: return Left()
-			case cf.X > head.X: return Right()
-			case cf.Y < head.Y: return Up()
+			case cf.X < myHead.X: return Left()
+			case cf.X > myHead.X: return Right()
+			case cf.Y < myHead.Y: return Up()
 			default: return Down()
 		}
 	}
@@ -482,13 +483,17 @@ func FindMove (g Game, t int, b Board, y Snake) string {
  	// Now, there are up to three possible directions we can move, since our own body
 	// will block at least one direction
 	s.debug.Printf("Enumerate possiible moves\n")
-	var moves [4]struct {
-		dir string
-		c Coord
+	type MoveType struct {
+		dir 		string
+		c 			Coord
+		space 		int
+		tooSmall	bool
+		nlonger 	int
+		nshorter	int
 	}
+	moves := make([]MoveType,0,4)
 
-	nmoves := 0
-	s.VisitNeighbours (head, func (neighbour Coord, dir string) {
+	s.VisitNeighbours (myHead, func (neighbour Coord, dir string) {
 		if s.IsBody(neighbour) || s.IsHead(neighbour) || 
 		   s.IsTail(neighbour) && s.snakes[s.SnakeNo(neighbour)].growing {
 			s.debug.Printf("Direction %s blocked by snake\n", dir)
@@ -496,38 +501,106 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 			s.debug.Printf("Add to possible moves: %s=(%d,%d)[%d]\n", dir,
 						   neighbour.X, neighbour.Y, 
 						   s.grid[neighbour.X][neighbour.Y].content)
-			moves[nmoves].dir = dir
-			moves[nmoves].c = neighbour
-			nmoves++
+			var move MoveType
+			move.dir = dir
+			move.c = neighbour
+			moves = append(moves,move)
 		}
 	})
 
-	s.debug.Printf("Check if 0 or 1 moves\n")
+	nopen := len(moves)
 
-	if (nmoves == 0) {
+	switch nopen {
+	case 0: 
 		s.debug.Printf("Suicide!\n")
 		return Left()
-	}
-
-	if (nmoves == 1) {
+	case 1:
 		s.debug.Printf("Select %s because it is the only viable move\n", moves[0].dir)
 		return Result(moves[0].dir)
+	}
+
+	// If any moves have an adjacent head from a longer snake, then avoid those moves
+	// If these moves have an adjacent head from a shorter snake, move to take it out
+	// unless we are in critical health
+
+	s.debug.Printf("Check for adjacent snake heads\n")
+	myHealth := y.Health
+	for _,move := range moves {
+		move.nlonger = 0
+		move.nshorter = 0
+
+		s.VisitNeighbours (move.c, func (neighbour Coord, dir string) {
+			if s.IsHead(neighbour) && neighbour != myHead {
+				if s.snakes[s.SnakeNo(neighbour)].length >= myLength {
+					move.nlonger++
+				} else {
+					move.nshorter++
+				}
+			}
+		})
+
+		if move.nlonger > 0 { 
+			s.debug.Printf("Avoid %s because it is adjacent to the head of a loner snake\b", move.dir)
+			nopen--
+			continue 
+		}
+
+		if move.nshorter > 0 && myHealth > s.food[0].dist { 
+			s.debug.Printf("Select %s because we have the opportunity to take out a shorter snake\n", move.dir)
+			return Result(move.dir) 
+		}
+	}
+	
+	switch nopen {
+		case 0: 			
+			least := 0
+			for index,move := range moves {
+				if move.nlonger < moves[index].nlonger { least = index }
+			}
+			dir := moves[least].dir
+			if len(moves) > 1 && s.IsFood(moves[least].c) {
+				// choose square without food
+				for _,move := range moves {
+					if !s.IsFood(move.c) {
+						dir = move.dir
+						break
+					}
+				}
+			}
+			s.debug.Printf("Select %s as the only option even though it is known to be unsafe\n",dir)
+			return Result(dir)
+
+		case 1:
+			dir := "none"
+			for _,move := range moves {
+				if move.nlonger == 0 { 
+					dir = move.dir 
+					break
+				}
+			}
+			if dir == "none" { panic("Unable to find valid move") }
+			s.debug.Printf("Select %s because it is the only viable move\n", dir)
+			return Result(dir)
 	}
 
 	// Map spaces anchored at each valid adjacent cell
 	s.debug.Printf("Map spaces around our head\n")
 	nspaces := 0
-	for mx := 0; mx < nmoves; mx++ {
-		move := moves[mx]
-		if (s.grid[move.c.X][move.c.Y].space > 0) { continue }
+	for _,move := range moves {
+		if (s.grid[move.c.X][move.c.Y].space > 0) { 
+			move.space = int(s.grid[move.c.X][move.c.Y].space)
+			continue 
+		} else {
+			nspaces++
+			move.space = nspaces
+		}
 
-		nspaces++
 		s.spaces[nspaces].size = s.MapSpace(move.c,nspaces)
 		s.debug.Printf("Space %d, direction %s, size %d\n", nspaces, move.dir,
 		               s.spaces[nspaces].size)
 
 		// Count the number of snakes bounding the space
-		s.debug.Printf("Count snakes bounding the space\n")
+		//s.debug.Printf("Count snakes bounding the space\n")
 		nsnakes := 0
 		for _,snakeInSpace := range s.spaces[nspaces].snakes {
 			if (snakeInSpace) { nsnakes++ }
@@ -536,16 +609,8 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		s.spaces[nspaces].self = nsnakes == 1 && s.spaces[nspaces].snakes[0]
 	}
 
-	// Rule out moves where we'd be entering a space where there is too little room for us
-	Exclude := func (x int) {
-		for i := x+1; i < nmoves; i++ {
-			moves[i-1] = moves[i]
-		} 
-		nmoves--
-	}
-
 	// For spaces which are bounded by just our snake, we should not enter if the size is
-	// smaller than half our length plus the number of food discs in the space.  The reason
+	// smaller than half our length minus the number of food discs in the space.  The reason
 	// is that, worst case, we will enter the region, eat all the food and grow our length
 	// by that much.
 	//
@@ -554,81 +619,49 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// heuristics are possible here.
 
 	s.debug.Printf("Check for infeasibly small adjacent spaces\n")
-	myLength := s.snakes[0].length
-	for mx := 0; mx < nmoves; {
-		move := moves[mx]
-		space := s.grid[move.c.X][move.c.Y].space
+	for _,move := range moves {
+		if (move.nlonger > 0) { continue }
+
+		space := s.grid[move.c.X][move.c.Y].space		
 		if s.spaces[space].self {
-			if s.spaces[space].size < myLength/2 + s.spaces[space].nfood {
-				s.debug.Printf("Exclude %s because it is a self-bounded region that is too small\n", move.dir)
-				Exclude(mx)
+			if s.spaces[space].size < myLength/2 - s.spaces[space].nfood {
+				s.debug.Printf("Avoid %s because it is a self-bounded region that is too small\n", move.dir)
+				move.tooSmall = true
+				nopen--
 				continue
 			}	
 		} else if s.spaces[space].size < myLength {
 			s.debug.Printf("Exclude %s because it is a region that is too small\n", move.dir)
-			Exclude(mx)
+			move.tooSmall = true
+			nopen--
 			continue
 		}
-		mx++
 	}
 
-	s.debug.Printf("Check if 0 or 1 moves\n")
-
-	if (nmoves == 0) {
-		s.debug.Printf("Suicide!\n")
-		return Left()
-	}
-
-	if (nmoves == 1) {
-		s.debug.Printf("Select %s because it is the only viable move\n")
-		return Result(moves[0].dir)
-	}
-	
-	// If any moves have an adjacent head from a longer snake, then avoid those moves
-	// If these moves have an adjacent head from a shorter snake, move to take it out
-	// unless we are in critical health
-
-	s.debug.Printf("Check for adjacent snake heads\n")
-	myHealth := y.Health
-	for mx := 0; mx < nmoves; {
-		move := moves[mx]
-		nlonger := 0
-		nshorter := 0
-
-		s.VisitNeighbours (move.c, func (neighbour Coord, dir string) {
-			if s.IsHead(neighbour) && neighbour != head {
-				if s.snakes[s.SnakeNo(neighbour)].length >= myLength {
-					nlonger++
-				} else {
-					nshorter++
-				}
+	switch nopen {
+	case 0:
+		// Here, we should just choose the largest space
+		most := -1
+		for index,move := range moves {
+			if move.nlonger > 0 { continue }
+			if most < 0 || s.spaces[move.space].size > s.spaces[moves[most].space].size { 
+				most = index 
 			}
-		})
-
-		if nlonger > 0 { 
-			s.debug.Printf("Exclude %s because it is adjacent to the head of a loner snake\b", move.dir)
-			Exclude(mx); 
-			continue 
 		}
-
-		if nshorter > 0 && myHealth > s.food[0].dist { 
-			s.debug.Printf("Select %s because we have the opportunity to take out a shorter snake\n", move.dir)
-			return Result(move.dir) 
+		s.debug.Printf("Select %s which is a small space but the only option", moves[most].dir)
+		return Result(moves[most].dir)
+	case 1:
+		dir := "none"
+		for _,move := range moves {
+			if move.nlonger > 0 { continue }
+			if !move.tooSmall {
+				dir = move.dir 
+				break
+			}
 		}
-
-		mx++
-	}
-	
-	s.debug.Printf("Check if 0 or 1 moves\n")
-
-	if (nmoves == 0) {
-		s.debug.Printf("Suicide!\n")
-		return Left()
-	}
-
-	if (nmoves == 1) {
-		s.debug.Printf("Select %s because it is the only viable move\n")
-		return Result(moves[0].dir)
+		if dir == "none" { panic("Unable to find valid move") }
+		s.debug.Printf("Select %s because it is the only viable move\n", dir)
+		return Result(dir)
 	}
 
 	// TODO: at this point, we can choose to chase food, prefer a larger space to move into,
@@ -638,31 +671,32 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
 	// Choose the move that makes best progress toward food
 	s.debug.Printf("Choose the move that makes best progress toward food\n")
-	var foodDist [3]int
-	for mx := 0; mx < nmoves; mx++ {
-		move := moves[mx]
+	least := -1
+	leastDist := s.h + s.w
+	for index,move := range moves {
+		if move.nlonger > 0 || move.tooSmall { continue }
 
 		if s.IsFood(move.c) { 
 			s.debug.Printf("Select %s because there is a food disc there\n", move.dir)
 			return Result(move.dir) 
 		}
 
-		foodDist[mx] = s.h+s.w
+		dist := s.h + s.w
 		for _,food := range s.food {
 			mdist := ManDist(move.c,food.pos)
 			if mdist < food.dist {
-				foodDist[mx] = mdist
+				dist = mdist
 				break;
 			}
 		}
+
+		if least < 0 || dist < leastDist { 
+			least = index
+			leastDist = dist
+		}
 	}
 
-	least := 0
-	for mx := 1; mx < nmoves; mx++ {
-		if foodDist[mx] < foodDist[least] { least = mx }
-	}
-
-	s.debug.Printf("Select %s because it makes the best progress toward food\n", )
+	s.debug.Printf("Select %s because it makes the best progress toward food\n", moves[least].dir)
 	return Result(moves[least].dir)
 }
 
