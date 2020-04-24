@@ -793,8 +793,10 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// larger snakes and move closer to shorter ones
 	goodHealth := y.Health > 2* (s.food[len(s.food)-1].dist)
 	smallestSnake := true
+	largestSnake := true
 	for _,snake := range s.snakes {
 		if myLength > snake.length { smallestSnake = false }
+		if myLength < snake.length { largestSnake = false }
 	}
 	if smallestSnake { goodHealth = false }
 	if t < 50 { goodHealth = false }
@@ -875,7 +877,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 			return Result(move.dir) 
 		}
 
-		if move.nshorter > 0 && t > 50 {
+		if move.nshorter > 0 && t > 50 && largestSnake {
 			s.debug.Printf("Select %s because we have the opportunity to eat a shorter snake\n", move.dir)
 			return Result(move.dir)
 		}
