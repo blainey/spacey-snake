@@ -606,7 +606,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 			if (snakeInSpace) { nsnakes++ }
 		}
 		s.spaces[nspaces].nsnakes = nsnakes
-		s.spaces[nspaces].self = nsnakes == 1 && s.spaces[nspaces].snakes[0]
+		s.spaces[nspaces].self = (nsnakes == 1 && s.spaces[nspaces].snakes[0])
 	}
 
 	// For spaces which are bounded by just our snake, we should not enter if the size is
@@ -631,11 +631,13 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 				continue
 			}	
 		} else if s.spaces[space].size < myLength {
-			s.debug.Printf("Exclude %s because it is a region that is too small\n", move.dir)
+			s.debug.Printf("Avoid %s because it is a region that is too small\n", move.dir)
 			move.tooSmall = true
 			nopen--
 			continue
 		}
+
+		move.tooSmall = false
 	}
 
 	switch nopen {
@@ -643,7 +645,6 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		// Here, we should just choose the largest space
 		most := -1
 		for index,move := range moves {
-			if move.nlonger > 0 { continue }
 			if most < 0 || s.spaces[move.space].size > s.spaces[moves[most].space].size { 
 				most = index 
 			}
