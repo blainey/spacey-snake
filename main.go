@@ -530,31 +530,29 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
 	s.debug.Printf("Check for adjacent snake heads\n")
 	for index,move := range moves {
-		move.nlonger = 0
-		move.nshorter = 0
+		moves[index].nlonger = 0
+		moves[index].nshorter = 0
 
 		s.VisitNeighbours (move.c, func (neighbour Coord, dir string) {
 			if s.IsHead(neighbour) && neighbour != myHead {
 				if s.snakes[s.SnakeNo(neighbour)].length >= myLength {
-					move.nlonger++
+					moves[index].nlonger++
 				} else {
-					move.nshorter++
+					moves[index].nshorter++
 				}
 			}
 		})
 
-		if move.nlonger > 0 { 
+		if moves[index].nlonger > 0 { 
 			s.debug.Printf("Avoid %s because it is adjacent to the head of a longer snake\n", move.dir)
 			nopen--
 			continue 
 		}
 
-		if move.nshorter > 0 && myHealth > s.food[0].dist { 
+		if moves[index].nshorter > 0 && myHealth > s.food[0].dist { 
 			s.debug.Printf("Select %s because we have the opportunity to take out a shorter snake\n", move.dir)
 			return Result(move.dir) 
 		}
-
-		s.debug.Printf("move %d: nlonger=%d, nshorter=%d\n", index, move.nlonger, move.nshorter)
 	}
 	
 	switch nopen {
@@ -578,9 +576,7 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 
 		case 1:
 			dir := "none"
-			s.debug.Printf("Just one move, search for it\n")
-			for index,move := range moves {
-				s.debug.Printf("move %d: nlonger=%d, nshorter=%d\n", index, move.nlonger, move.nshorter)
+			for _,move := range moves {
 				if move.nlonger == 0 { 
 					dir = move.dir 
 					break
@@ -594,13 +590,13 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// Map spaces anchored at each valid adjacent cell
 	s.debug.Printf("Map spaces around our head\n")
 	nspaces := 0
-	for _,move := range moves {
+	for index,move := range moves {
 		if (s.grid[move.c.X][move.c.Y].space > 0) { 
-			move.space = int(s.grid[move.c.X][move.c.Y].space)
+			moves[index].space = int(s.grid[move.c.X][move.c.Y].space)
 			continue 
 		} else {
 			nspaces++
-			move.space = nspaces
+			moves[index].space = nspaces
 		}
 
 		s.spaces[nspaces].size = s.MapSpace(move.c,nspaces)
@@ -627,25 +623,23 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 	// heuristics are possible here.
 
 	s.debug.Printf("Check for infeasibly small adjacent spaces\n")
-	for _,move := range moves {
+	for index,move := range moves {
 		if (move.nlonger > 0) { continue }
 
 		space := s.grid[move.c.X][move.c.Y].space		
 		if s.spaces[space].self {
 			if s.spaces[space].size < myLength/2 - s.spaces[space].nfood {
 				s.debug.Printf("Avoid %s because it is a self-bounded space that is too small\n", move.dir)
-				move.smallSpace = true
+				moves[index].smallSpace = true
 				nopen--
 				continue
 			}	
 		} else if s.spaces[space].size < myLength {
 			s.debug.Printf("Avoid %s because it is a space that is too small\n", move.dir)
-			move.smallSpace = true
+			moves[index].smallSpace = true
 			nopen--
 			continue
 		}
-
-		move.smallSpace = false
 	}
 
 	switch nopen {
@@ -659,10 +653,10 @@ func FindMove (g Game, t int, b Board, y Snake) string {
 		}
 		s.debug.Printf("Select %s which is a small space but the only option", moves[most].dir)
 		return Result(moves[most].dir)
+
 	case 1:
 		dir := "none"
 		for _,move := range moves {
-			s.debug.Printf("consider move: dir=%s, nlonger=%d, smallSpace=%d\n",move.dir,move.nlonger,move.smallSpace)
 			if move.nlonger == 0 && !move.smallSpace { 
 				dir = move.dir 
 				break
