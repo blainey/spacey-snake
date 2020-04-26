@@ -992,7 +992,6 @@ func HandleStart(w http.ResponseWriter, r *http.Request) {
 		{ "green",	"#006600" },
 		{ "tan",	"#996633" },
 		{ "pink",	"#ff66ff" },
-		{ "yellow",	"#ffff00" },
 		{ "violet",	"#cc0099" },
 	}  
 	
